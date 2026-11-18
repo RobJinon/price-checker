@@ -1,77 +1,213 @@
+import { BarcodeScanningResult, CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { LayoutRectangle, StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { CameraControls } from '@/components/scanner/camera-controls';
+import {
+  ScannedDetails,
+  ScannedProductDialog,
+} from '@/components/scanner/scanned-product-dialog';
+import { ViewfinderOverlay } from '@/components/scanner/viewfinder-overlay';
 import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { Link, Stack } from 'expo-router';
-import { MoonStarIcon, StarIcon, SunIcon } from 'lucide-react-native';
-import { useColorScheme } from 'nativewind';
-import * as React from 'react';
-import { Image, type ImageStyle, View } from 'react-native';
+import { useProducts } from '@/context/products-context';
 
-const LOGO = {
-  light: require('@/assets/images/react-native-reusables-light.png'),
-  dark: require('@/assets/images/react-native-reusables-dark.png'),
-};
+const AnimatedCameraView = Animated.createAnimatedComponent(CameraView);
 
-const SCREEN_OPTIONS = {
-  title: 'React Native Reusables',
-  headerTransparent: true,
-  headerRight: () => <ThemeToggle />,
-};
+const ZOOM_LEVELS = [
+  { label: '1x', value: 0.16 },
+  { label: '1.5x', value: 0.3 },
+  { label: '2x', value: 0.5 },
+  { label: '3x', value: 0.9 },
+];
 
-const IMAGE_STYLE: ImageStyle = {
-  height: 76,
-  width: 76,
-};
+export default function ScannerScreen() {
+  const { findProductByBarcode } = useProducts();
+  const cameraRef = useRef<CameraView>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isFocused, setIsFocused] = useState(true);
+  const [facing, setFacing] = useState<'back' | 'front'>('back');
+  const [torchEnabled, setTorchEnabled] = useState(false);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const [scanBoxLayout, setScanBoxLayout] = useState<LayoutRectangle | null>(null);
+  const [scannedDetails, setScannedDetails] = useState<ScannedDetails | null>(null);
 
-export default function Screen() {
-  const { colorScheme } = useColorScheme();
+  const animatedZoom = useSharedValue(ZOOM_LEVELS[0].value);
+  const flipOpacity = useSharedValue(1);
+  const flipScale = useSharedValue(1);
+
+  const animatedCameraProps = useAnimatedProps(() => ({
+    zoom: animatedZoom.value,
+  }));
+
+  const cameraTransitionStyle = useAnimatedStyle(() => ({
+    opacity: flipOpacity.value,
+    transform: [{ scale: flipScale.value }],
+  }));
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => {
+        setIsFocused(false);
+        setTorchEnabled(false);
+      };
+    }, [])
+  );
+
+  const toggleFacing = () => {
+    flipOpacity.value = withSequence(
+      withTiming(0.3, { duration: 110 }),
+      withTiming(1, { duration: 200 })
+    );
+    flipScale.value = withSequence(
+      withTiming(0.95, { duration: 110 }),
+      withTiming(1, { duration: 200 })
+    );
+
+    setFacing((prev) => {
+      const next = prev === 'back' ? 'front' : 'back';
+      if (next === 'front') setTorchEnabled(false);
+      return next;
+    });
+  };
+
+  const cycleZoom = () => {
+    const nextIndex = (zoomIndex + 1) % ZOOM_LEVELS.length;
+    setZoomIndex(nextIndex);
+    animatedZoom.value = withTiming(ZOOM_LEVELS[nextIndex].value, { duration: 220 });
+  };
+
+  if (!permission) {
+    return <View style={styles.container} />;
+  }
+
+  if (!permission.granted) {
+    return (
+      <View className="flex-1 items-center justify-center gap-4 bg-background px-6">
+        <Text className="text-center text-base text-foreground">
+          Camera access is needed to scan barcodes.
+        </Text>
+        <Button onPress={requestPermission}>
+          <Text>Grant Camera Permission</Text>
+        </Button>
+      </View>
+    );
+  }
+
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
+    if (!scanBoxLayout || !result.bounds) return;
+
+    const { origin, size } = result.bounds;
+    const barcodeCenterX = origin.x + size.width / 2;
+    const barcodeCenterY = origin.y + size.height / 2;
+
+    const isInsideBox =
+      barcodeCenterX >= scanBoxLayout.x &&
+      barcodeCenterX <= scanBoxLayout.x + scanBoxLayout.width &&
+      barcodeCenterY >= scanBoxLayout.y &&
+      barcodeCenterY <= scanBoxLayout.y + scanBoxLayout.height;
+
+    if (!isInsideBox) return;
+
+    const matchedProduct = findProductByBarcode(result.data);
+
+    Haptics.notificationAsync(
+      matchedProduct
+        ? Haptics.NotificationFeedbackType.Success
+        : Haptics.NotificationFeedbackType.Warning
+    );
+
+    cameraRef.current?.pausePreview();
+    setScannedDetails({
+      result,
+      product: matchedProduct,
+      scannedAt: new Date().toLocaleTimeString(),
+    });
+  };
+
+  const handleCloseDialog = () => {
+    setScannedDetails(null);
+    cameraRef.current?.resumePreview();
+  };
 
   return (
-    <>
-      <Stack.Screen options={SCREEN_OPTIONS} />
-      <View className="flex-1 items-center justify-center gap-8 p-4">
-        <Image source={LOGO[colorScheme ?? 'light']} style={IMAGE_STYLE} resizeMode="contain" />
-        <View className="gap-2 p-4">
-          <Text className="ios:text-foreground font-mono text-sm text-muted-foreground">
-            1. Edit <Text variant="code">app/index.tsx</Text> to get started.
+    <SafeAreaView>
+      {/* Header */}
+      <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
+        <View>
+          <Text className="text-xl font-bold text-foreground">Barcode Scanner</Text>
+          <Text className="text-xs text-muted-foreground">
+            Scan product barcode
           </Text>
-          <Text className="ios:text-foreground font-mono text-sm text-muted-foreground">
-            2. Save to see your changes instantly.
-          </Text>
-        </View>
-        <View className="flex-row gap-2">
-          <Link href="https://reactnativereusables.com" asChild>
-            <Button>
-              <Text>Browse the Docs</Text>
-            </Button>
-          </Link>
-          <Link href="https://github.com/founded-labs/react-native-reusables" asChild>
-            <Button variant="ghost">
-              <Text>Star the Repo</Text>
-              <Icon as={StarIcon} />
-            </Button>
-          </Link>
         </View>
       </View>
-    </>
+
+      {/* 1:1 Square Camera & Overlay Wrapper */}
+      <View style={styles.cameraWrapper}>
+        {isFocused && (
+          <Animated.View style={[StyleSheet.absoluteFill, cameraTransitionStyle]}>
+            <AnimatedCameraView
+              ref={cameraRef}
+              style={StyleSheet.absoluteFill}
+              facing={facing}
+              ratio="1:1"
+              animatedProps={animatedCameraProps}
+              enableTorch={facing === 'back' && torchEnabled}
+              onBarcodeScanned={scannedDetails ? undefined : handleBarcodeScanned}
+            />
+          </Animated.View>
+        )}
+
+        <ViewfinderOverlay onScanBoxLayout={setScanBoxLayout} />
+      </View>
+      
+      <View className='flex flex-col justify-center my-2 items-center gap-1'>
+        <Text className='text-neutral-500 text-sm'>Camera Controls</Text>
+        <CameraControls
+          zoomLabel={ZOOM_LEVELS[zoomIndex].label}
+          onCycleZoom={cycleZoom}
+          torchEnabled={torchEnabled}
+          onToggleTorch={() => setTorchEnabled((prev) => !prev)}
+          isFrontCamera={facing === 'front'}
+          onToggleFacing={toggleFacing}
+        />
+      </View>
+
+      <ScannedProductDialog
+        scannedDetails={scannedDetails}
+        onClose={handleCloseDialog}
+        onProductCreated={(product) =>
+          setScannedDetails((prev) => (prev ? { ...prev, product } : null))
+        }
+      />
+    </SafeAreaView>
   );
 }
 
-const THEME_ICONS = {
-  light: SunIcon,
-  dark: MoonStarIcon,
-};
-
-function ThemeToggle() {
-  const { colorScheme, toggleColorScheme } = useColorScheme();
-
-  return (
-    <Button
-      onPressIn={toggleColorScheme}
-      size="icon"
-      variant="ghost"
-      className="ios:size-9 rounded-full web:mx-4">
-      <Icon as={THEME_ICONS[colorScheme ?? 'light']} className="size-5" />
-    </Button>
-  );
-}
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    backgroundColor: '#000',
+    paddingTop: 64,
+  },
+  cameraWrapper: {
+    width: '100%',
+    aspectRatio: 1,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

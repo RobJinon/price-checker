@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Package, ScanBarcode } from 'lucide-react-native';
+import { Package, ScanBarcode, Store } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 
 import { NAV_THEME } from '@/lib/theme';
@@ -21,14 +21,22 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="scanner"
+        name="index"
         options={{
           title: 'Scanner',
           tabBarIcon: ({ color, size }) => <ScanBarcode color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="index"
+        name="stores"
+        options={{
+          title: 'Stores',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => <Store size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="products"
         options={{
           title: 'Products',
           tabBarIcon: ({ color, size }) => <Package color={color} size={size} />,
