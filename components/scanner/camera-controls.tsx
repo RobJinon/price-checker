@@ -1,5 +1,10 @@
 import { Flashlight, FlashlightOff, SwitchCamera } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Text } from '@/components/ui/text';
 
@@ -20,8 +25,19 @@ export function CameraControls({
   isFrontCamera,
   onToggleFacing,
 }: CameraControlsProps) {
+  const rotation = useSharedValue(0);
+
+  const flipIconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  const handleFlipPress = () => {
+    rotation.value = withTiming(rotation.value + 180, { duration: 250 });
+    onToggleFacing();
+  };
+
   return (
-    <View className="my-4 flex-row items-center gap-5 rounded-full border border-white/15 bg-black/75 px-5 py-2.5">
+    <View className="flex-row items-center gap-5 rounded-full border border-white/15 bg-black/75 px-5 py-2.5">
       <Pressable
         onPress={onCycleZoom}
         className="h-11 w-11 items-center justify-center rounded-full bg-white/10 active:opacity-75"
@@ -42,10 +58,12 @@ export function CameraControls({
       </Pressable>
 
       <Pressable
-        onPress={onToggleFacing}
+        onPress={handleFlipPress}
         className="h-11 w-11 items-center justify-center rounded-full bg-white/10 active:opacity-75"
       >
-        <SwitchCamera size={21} color="#f8fafc" />
+        <Animated.View style={flipIconStyle}>
+          <SwitchCamera size={21} color="#f8fafc" />
+        </Animated.View>
       </Pressable>
     </View>
   );

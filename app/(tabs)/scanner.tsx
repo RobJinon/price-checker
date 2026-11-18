@@ -3,6 +3,14 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { LayoutRectangle, StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+
 
 import { CameraControls } from '@/components/scanner/camera-controls';
 import {
@@ -13,6 +21,8 @@ import { ViewfinderOverlay } from '@/components/scanner/viewfinder-overlay';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useProducts } from '@/context/products-context';
+
+const AnimatedCameraView = Animated.createAnimatedComponent(CameraView);
 
 const ZOOM_LEVELS = [
   { label: '1x', value: 0.16 },
@@ -32,6 +42,19 @@ export default function ScannerScreen() {
   const [scanBoxLayout, setScanBoxLayout] = useState<LayoutRectangle | null>(null);
   const [scannedDetails, setScannedDetails] = useState<ScannedDetails | null>(null);
 
+  const animatedZoom = useSharedValue(ZOOM_LEVELS[0].value);
+  const flipOpacity = useSharedValue(1);
+  const flipScale = useSharedValue(1);
+
+  const animatedCameraProps = useAnimatedProps(() => ({
+    zoom: animatedZoom.value,
+  }));
+
+  const cameraTransitionStyle = useAnimatedStyle(() => ({
+    opacity: flipOpacity.value,
+    transform: [{ scale: flipScale.value }],
+  }));
+
   useFocusEffect(
     useCallback(() => {
       setIsFocused(true);
@@ -43,6 +66,15 @@ export default function ScannerScreen() {
   );
 
   const toggleFacing = () => {
+    flipOpacity.value = withSequence(
+      withTiming(0.3, { duration: 110 }),
+      withTiming(1, { duration: 200 })
+    );
+    flipScale.value = withSequence(
+      withTiming(0.95, { duration: 110 }),
+      withTiming(1, { duration: 200 })
+    );
+
     setFacing((prev) => {
       const next = prev === 'back' ? 'front' : 'back';
       if (next === 'front') setTorchEnabled(false);
@@ -51,7 +83,9 @@ export default function ScannerScreen() {
   };
 
   const cycleZoom = () => {
-    setZoomIndex((prev) => (prev + 1) % ZOOM_LEVELS.length);
+    const nextIndex = (zoomIndex + 1) % ZOOM_LEVELS.length;
+    setZoomIndex(nextIndex);
+    animatedZoom.value = withTiming(ZOOM_LEVELS[nextIndex].value, { duration: 220 });
   };
 
   if (!permission) {
@@ -112,28 +146,33 @@ export default function ScannerScreen() {
       {/* 1:1 Square Camera & Overlay Wrapper */}
       <View style={styles.cameraWrapper}>
         {isFocused && (
-          <CameraView
-            ref={cameraRef}
-            style={StyleSheet.absoluteFill}
-            facing={facing}
-            ratio="1:1"
-            zoom={ZOOM_LEVELS[zoomIndex].value}
-            enableTorch={facing === 'back' && torchEnabled}
-            onBarcodeScanned={scannedDetails ? undefined : handleBarcodeScanned}
-          />
+          <Animated.View style={[StyleSheet.absoluteFill, cameraTransitionStyle]}>
+            <AnimatedCameraView
+              ref={cameraRef}
+              style={StyleSheet.absoluteFill}
+              facing={facing}
+              ratio="1:1"
+              animatedProps={animatedCameraProps}
+              enableTorch={facing === 'back' && torchEnabled}
+              onBarcodeScanned={scannedDetails ? undefined : handleBarcodeScanned}
+            />
+          </Animated.View>
         )}
 
         <ViewfinderOverlay onScanBoxLayout={setScanBoxLayout} />
       </View>
-
-      <CameraControls
-        zoomLabel={ZOOM_LEVELS[zoomIndex].label}
-        onCycleZoom={cycleZoom}
-        torchEnabled={torchEnabled}
-        onToggleTorch={() => setTorchEnabled((prev) => !prev)}
-        isFrontCamera={facing === 'front'}
-        onToggleFacing={toggleFacing}
-      />
+      
+      <View className='flex flex-col justify-center my-2 items-center gap-1'>
+        <Text className='text-neutral-500 text-sm'>Camera Controls</Text>
+        <CameraControls
+          zoomLabel={ZOOM_LEVELS[zoomIndex].label}
+          onCycleZoom={cycleZoom}
+          torchEnabled={torchEnabled}
+          onToggleTorch={() => setTorchEnabled((prev) => !prev)}
+          isFrontCamera={facing === 'front'}
+          onToggleFacing={toggleFacing}
+        />
+      </View>
 
       <ScannedProductDialog
         scannedDetails={scannedDetails}
