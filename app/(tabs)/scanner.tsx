@@ -1,7 +1,8 @@
 import { BarcodeScanningResult, CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect } from 'expo-router';
+import { Flashlight, FlashlightOff } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { LayoutRectangle, ScrollView, StyleSheet, View } from 'react-native';
+import { LayoutRectangle, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,13 +31,17 @@ type ScannedDetails = {
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isFocused, setIsFocused] = useState(true);
+  const [torchEnabled, setTorchEnabled] = useState(false);
   const [scanBoxLayout, setScanBoxLayout] = useState<LayoutRectangle | null>(null);
   const [scannedDetails, setScannedDetails] = useState<ScannedDetails | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       setIsFocused(true);
-      return () => setIsFocused(false);
+      return () => {
+        setIsFocused(false);
+        setTorchEnabled(false);
+      };
     }, [])
   );
 
@@ -86,9 +91,22 @@ export default function ScannerScreen() {
           style={styles.camera}
           facing="back"
           ratio="16:9"
+          enableTorch={torchEnabled}
           onBarcodeScanned={scannedDetails ? undefined : handleBarcodeScanned}
         />
       )}
+
+      {/* Flashlight Toggle */}
+      <Pressable
+        onPress={() => setTorchEnabled((prev) => !prev)}
+        className="absolute right-5 top-14 z-10 h-12 w-12 items-center justify-center rounded-full bg-black/60 active:opacity-75"
+      >
+        {torchEnabled ? (
+          <Flashlight size={22} color="#facc15" />
+        ) : (
+          <FlashlightOff size={22} color="#f8fafc" />
+        )}
+      </Pressable>
 
       {/* Viewfinder Cutout Overlay */}
       <View style={styles.overlay} pointerEvents="none">
