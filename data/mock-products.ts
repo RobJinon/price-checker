@@ -1,9 +1,15 @@
+export type VendorPrice = {
+  vendor: string;
+  price: number;
+  updatedAt: string;
+};
+
 export type Product = {
   id: string;
   barcodes: string[];
   name: string;
   details: string;
-  price: number;
+  prices: VendorPrice[];
 };
 
 export const MOCK_PRODUCTS: Product[] = [
@@ -13,7 +19,10 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'KZ EDX PRO In-ear monitors',
     details:
       '10mm dual-magnetic circuit dynamic driver IEM with detachable 0.75mm 2-pin OFC flat cable and noise-isolating ergonomic resin shell.',
-    price: 349.0,
+    prices: [
+      { vendor: 'Shopee', price: 349.0, updatedAt: '2026-11-10' },
+      { vendor: 'Lazada', price: 375.0, updatedAt: '2026-11-08' },
+    ],
   },
   {
     id: 'prod_defensil_70_60ml',
@@ -21,7 +30,11 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'Defensil Isopropyl Alcohol 70% 60ml',
     details:
       '70% solution antiseptic and disinfectant in a 60ml flip-top pocket bottle with moisturizer to help prevent skin dryness.',
-    price: 38.5,
+    prices: [
+      { vendor: 'Iloilo Supermart', price: 38.5, updatedAt: '2026-11-12' },
+      { vendor: 'Watsons', price: 42.0, updatedAt: '2026-11-05' },
+      { vendor: 'Mercury Drug', price: 41.25, updatedAt: '2026-11-01' },
+    ],
   },
   {
     id: 'prod_equal_gold_150g',
@@ -29,7 +42,10 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'Equal Gold Sucralose 150g',
     details:
       'Zero-calorie crunchy granular sugar substitute made with sucralose in a 150g resealable pouch, measures spoon-for-spoon like sugar.',
-    price: 165.0,
+    prices: [
+      { vendor: 'SM Supermarket', price: 165.0, updatedAt: '2026-11-14' },
+      { vendor: 'Robinsons Supermarket', price: 172.5, updatedAt: '2026-11-09' },
+    ],
   },
   {
     id: 'prod_sama_g750',
@@ -37,7 +53,10 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'Sama G750 PSU',
     details:
       '750W 80 Plus Gold certified fully modular ATX 3.0 / PCIe 5.0 power supply with 120mm fluid dynamic bearing fan and flat black modular cables.',
-    price: 4295.0,
+    prices: [
+      { vendor: 'Shopee', price: 4295.0, updatedAt: '2026-11-15' },
+      { vendor: 'DynaQuest PC', price: 4450.0, updatedAt: '2026-11-11' },
+    ],
   },
   {
     id: 'prod_msi_a750gl',
@@ -45,7 +64,10 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'MSI MAG A750GL PCIE5 PSU',
     details:
       '750W 80 Plus Gold fully modular ATX 3.0 power supply with native 16-pin (12VHPWR) PCIe 5.0 connector, compact 140mm chassis, and DC-to-DC circuit design.',
-    price: 5450.0,
+    prices: [
+      { vendor: 'Datablitz', price: 5450.0, updatedAt: '2026-11-16' },
+      { vendor: 'PC Express', price: 5690.0, updatedAt: '2026-11-10' },
+    ],
   },
   {
     id: 'prod_vention_dp_1_5m',
@@ -53,7 +75,7 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'Vention DisplayPort Cable 1.5m',
     details:
       '1.5m DisplayPort 1.4 braided cable supporting 8K@60Hz and 4K@144Hz high refresh rates, 32.4Gbps bandwidth, and gold-plated locking connectors.',
-    price: 395.0,
+    prices: [{ vendor: 'Shopee', price: 395.0, updatedAt: '2026-11-12' }],
   },
   {
     id: 'prod_dell_wh3024',
@@ -61,7 +83,10 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'Dell WH3024 Headset',
     details:
       'Dell Pro Wired ANC Headset with Active Noise Cancellation, AI-based noise-canceling boom microphone, memory foam leatherette ear cushions, and USB-C/USB-A inline call controls.',
-    price: 3850.0,
+    prices: [
+      { vendor: 'Dell Official Store', price: 3850.0, updatedAt: '2026-11-04' },
+      { vendor: 'Silicon Valley', price: 4190.0, updatedAt: '2026-11-02' },
+    ],
   },
 ];
 

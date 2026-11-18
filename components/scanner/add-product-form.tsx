@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -12,11 +12,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
+import { useProducts } from '@/context/products-context';
 
 type AddProductFormProps = {
   barcode: string;
   barcodeType: string;
-  onSave: (data: { name: string; price: number; details: string }) => void;
+  onSave: (data: { name: string; vendor: string; price: number; details: string }) => void;
   onCancel: () => void;
 };
 
@@ -26,16 +27,22 @@ export function AddProductForm({
   onSave,
   onCancel,
 }: AddProductFormProps) {
+  const { vendors } = useProducts();
   const [name, setName] = useState('');
+  const [vendor, setVendor] = useState('');
   const [price, setPrice] = useState('');
   const [details, setDetails] = useState('');
 
   const parsedPrice = parseFloat(price);
-  const isValid = Boolean(name.trim()) && !Number.isNaN(parsedPrice) && parsedPrice >= 0;
+  const isValid =
+    Boolean(name.trim()) &&
+    Boolean(vendor.trim()) &&
+    !Number.isNaN(parsedPrice) &&
+    parsedPrice >= 0;
 
   const handleSubmit = () => {
     if (!isValid) return;
-    onSave({ name, price: parsedPrice, details });
+    onSave({ name, vendor, price: parsedPrice, details });
   };
 
   return (
@@ -57,6 +64,51 @@ export function AddProductForm({
               value={name}
               onChangeText={setName}
             />
+          </View>
+
+          <View className="gap-1.5">
+            <Label nativeID="product-vendor">Shop / Supermarket *</Label>
+            <Input
+              aria-labelledby="product-vendor"
+              placeholder="e.g. SM Supermarket, Iloilo Supermart, Shopee"
+              value={vendor}
+              onChangeText={setVendor}
+            />
+            {vendors.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View className="flex-row gap-1.5 pt-1">
+                  {vendors.map((existingVendor) => {
+                    const isSelected =
+                      vendor.trim().toLowerCase() === existingVendor.toLowerCase();
+                    return (
+                      <Pressable
+                        key={existingVendor}
+                        onPress={() => setVendor(existingVendor)}
+                        className={`rounded-full border px-2.5 py-1 ${
+                          isSelected
+                            ? 'border-primary bg-primary'
+                            : 'border-border bg-secondary'
+                        }`}
+                      >
+                        <Text
+                          className={`text-xs ${
+                            isSelected
+                              ? 'font-semibold text-primary-foreground'
+                              : 'text-secondary-foreground'
+                          }`}
+                        >
+                          {existingVendor}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            )}
           </View>
 
           <View className="gap-1.5">
