@@ -2,7 +2,13 @@ import { BarcodeScanningResult, CameraView, useCameraPermissions } from 'expo-ca
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { LayoutRectangle, StyleSheet, View } from 'react-native';
+import {
+  GestureResponderEvent,
+  LayoutRectangle,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 import Animated, {
   useAnimatedProps,
   useAnimatedStyle,
@@ -13,6 +19,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CameraControls } from '@/components/scanner/camera-controls';
+import { FocusIndicator } from '@/components/scanner/focus-indicator';
 import {
   ScannedDetails,
   ScannedProductDialog,
@@ -39,6 +46,10 @@ export default function ScannerScreen() {
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [zoomIndex, setZoomIndex] = useState(0);
+  const [autofocus, setAutofocus] = useState<'on' | 'off'>('on');
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number; key: number } | null>(
+    null
+  );
   const [scanBoxLayout, setScanBoxLayout] = useState<LayoutRectangle | null>(null);
   const [scannedDetails, setScannedDetails] = useState<ScannedDetails | null>(null);
 
@@ -86,6 +97,15 @@ export default function ScannerScreen() {
     const nextIndex = (zoomIndex + 1) % ZOOM_LEVELS.length;
     setZoomIndex(nextIndex);
     animatedZoom.value = withTiming(ZOOM_LEVELS[nextIndex].value, { duration: 220 });
+  };
+
+  const handleTapToFocus = (event: GestureResponderEvent) => {
+    const { locationX, locationY } = event.nativeEvent;
+    setFocusPoint({ x: locationX, y: locationY, key: Date.now() });
+
+    // Briefly toggle autofocus off -> on to force the lens to re-focus
+    setAutofocus('off');
+    setTimeout(() => setAutofocus('on'), 120);
   };
 
   if (!permission) {
@@ -154,7 +174,7 @@ export default function ScannerScreen() {
       </View>
 
       {/* 1:1 Square Camera & Overlay Wrapper */}
-      <View style={styles.cameraWrapper}>
+      <Pressable onPress={handleTapToFocus} style={styles.cameraWrapper}>
         {isFocused && (
           <Animated.View style={[StyleSheet.absoluteFill, cameraTransitionStyle]}>
             <AnimatedCameraView
@@ -162,6 +182,7 @@ export default function ScannerScreen() {
               style={StyleSheet.absoluteFill}
               facing={facing}
               ratio="1:1"
+              autofocus={autofocus}
               animatedProps={animatedCameraProps}
               enableTorch={facing === 'back' && torchEnabled}
               onBarcodeScanned={scannedDetails ? undefined : handleBarcodeScanned}
@@ -169,8 +190,9 @@ export default function ScannerScreen() {
           </Animated.View>
         )}
 
+        <FocusIndicator point={focusPoint} />
         <ViewfinderOverlay onScanBoxLayout={setScanBoxLayout} />
-      </View>
+      </Pressable>
       
       <View className='flex flex-col justify-center my-2 items-center gap-1'>
         <Text className='text-neutral-500 text-sm'>Camera Controls</Text>
