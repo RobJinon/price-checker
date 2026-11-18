@@ -6,17 +6,30 @@ import { NAV_THEME } from '@/lib/theme';
 
 export default function TabLayout() {
   const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const theme = NAV_THEME[colorScheme ?? 'light'];
+  const activeColor = '#10b981';
+  const inactiveColor = isDark ? '#a1a1aa' : '#71717a';
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.text,
+        tabBarActiveTintColor: activeColor,
+        tabBarInactiveTintColor: inactiveColor,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
+        tabBarItemStyle: {
+          borderRadius: 12,
+          marginHorizontal: 6,
+          marginVertical: 4,
+        },
         tabBarStyle: {
           backgroundColor: theme.colors.card,
           borderTopColor: theme.colors.border,
+          height: 62,
         },
       }}
     >
