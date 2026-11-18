@@ -25,6 +25,9 @@ type ProductsContextValue = {
   vendors: Vendor[];
   getVendorById: (vendorId: string) => Vendor | undefined;
   findOrCreateVendor: (input: NewVendorInput) => Vendor;
+  addVendor: (input: NewVendorInput) => Vendor;
+  updateVendor: (vendorId: string, input: NewVendorInput) => void;
+  deleteVendor: (vendorId: string) => void;
   findProductByBarcode: (rawBarcode: string) => Product | null;
   addProduct: (input: NewProductInput) => Product;
   upsertVendorPrice: (
@@ -60,6 +63,36 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
     setVendors((prev) => [...prev, created]);
     return created;
+  };
+
+  const addVendor = (input: NewVendorInput): Vendor => {
+    return findOrCreateVendor(input);
+  };
+
+  const updateVendor = (vendorId: string, input: NewVendorInput) => {
+    setVendors((prev) =>
+      prev.map((vendor) =>
+        vendor.id === vendorId
+          ? {
+              ...vendor,
+              name: input.name.trim(),
+              category: input.category ?? vendor.category,
+              description: input.description?.trim() ?? '',
+              location: input.location?.trim() ?? '',
+            }
+          : vendor
+      )
+    );
+  };
+
+  const deleteVendor = (vendorId: string) => {
+    setVendors((prev) => prev.filter((vendor) => vendor.id !== vendorId));
+    setProducts((prev) =>
+      prev.map((product) => ({
+        ...product,
+        prices: product.prices.filter((entry) => entry.vendorId !== vendorId),
+      }))
+    );
   };
 
   const findProductByBarcode = (rawBarcode: string): Product | null => {
@@ -137,6 +170,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         vendors,
         getVendorById,
         findOrCreateVendor,
+        addVendor,
+        updateVendor,
+        deleteVendor,
         findProductByBarcode,
         addProduct,
         upsertVendorPrice,
