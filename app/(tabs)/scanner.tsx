@@ -1,7 +1,7 @@
 import { BarcodeScanningResult, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { LayoutRectangle, StyleSheet, View } from 'react-native';
 
 import { CameraControls } from '@/components/scanner/camera-controls';
@@ -15,13 +15,15 @@ import { Text } from '@/components/ui/text';
 import { useProducts } from '@/context/products-context';
 
 const ZOOM_LEVELS = [
-  { label: '1x', value: 0 },
-  { label: '1.5x', value: 0.15 },
-  { label: '2x', value: 0.3 },
+  { label: '1x', value: 0.16 },
+  { label: '1.5x', value: 0.3 },
+  { label: '2x', value: 0.5 },
+  { label: '3x', value: 0.9 },
 ];
 
 export default function ScannerScreen() {
   const { findProductByBarcode } = useProducts();
+  const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [isFocused, setIsFocused] = useState(true);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
@@ -92,11 +94,17 @@ export default function ScannerScreen() {
         : Haptics.NotificationFeedbackType.Warning
     );
 
+    cameraRef.current?.pausePreview();
     setScannedDetails({
       result,
       product: matchedProduct,
       scannedAt: new Date().toLocaleTimeString(),
     });
+  };
+
+  const handleCloseDialog = () => {
+    setScannedDetails(null);
+    cameraRef.current?.resumePreview();
   };
 
   return (
@@ -105,6 +113,7 @@ export default function ScannerScreen() {
       <View style={styles.cameraWrapper}>
         {isFocused && (
           <CameraView
+            ref={cameraRef}
             style={StyleSheet.absoluteFill}
             facing={facing}
             ratio="1:1"
@@ -128,7 +137,7 @@ export default function ScannerScreen() {
 
       <ScannedProductDialog
         scannedDetails={scannedDetails}
-        onClose={() => setScannedDetails(null)}
+        onClose={handleCloseDialog}
         onProductCreated={(product) =>
           setScannedDetails((prev) => (prev ? { ...prev, product } : null))
         }
