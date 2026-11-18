@@ -13,11 +13,19 @@ import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
 import { useProducts } from '@/context/products-context';
+import { VENDOR_CATEGORIES, VendorCategory } from '@/data/mock-vendors';
 
 type AddProductFormProps = {
   barcode: string;
   barcodeType: string;
-  onSave: (data: { name: string; vendor: string; price: number; details: string }) => void;
+  onSave: (data: {
+    name: string;
+    vendorName: string;
+    vendorCategory?: VendorCategory;
+    vendorLocation?: string;
+    price: number;
+    details: string;
+  }) => void;
   onCancel: () => void;
 };
 
@@ -29,20 +37,34 @@ export function AddProductForm({
 }: AddProductFormProps) {
   const { vendors } = useProducts();
   const [name, setName] = useState('');
-  const [vendor, setVendor] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [vendorCategory, setVendorCategory] = useState<VendorCategory>('supermarket');
+  const [vendorLocation, setVendorLocation] = useState('');
   const [price, setPrice] = useState('');
   const [details, setDetails] = useState('');
+
+  const matchedVendor = vendors.find(
+    (v) => v.name.toLowerCase() === vendorName.trim().toLowerCase()
+  );
+  const isNewVendor = Boolean(vendorName.trim()) && !matchedVendor;
 
   const parsedPrice = parseFloat(price);
   const isValid =
     Boolean(name.trim()) &&
-    Boolean(vendor.trim()) &&
+    Boolean(vendorName.trim()) &&
     !Number.isNaN(parsedPrice) &&
     parsedPrice >= 0;
 
   const handleSubmit = () => {
     if (!isValid) return;
-    onSave({ name, vendor, price: parsedPrice, details });
+    onSave({
+      name,
+      vendorName,
+      vendorCategory: isNewVendor ? vendorCategory : undefined,
+      vendorLocation: isNewVendor ? vendorLocation : undefined,
+      price: parsedPrice,
+      details,
+    });
   };
 
   return (
@@ -71,8 +93,8 @@ export function AddProductForm({
             <Input
               aria-labelledby="product-vendor"
               placeholder="e.g. SM Supermarket, Iloilo Supermart, Shopee"
-              value={vendor}
-              onChangeText={setVendor}
+              value={vendorName}
+              onChangeText={setVendorName}
             />
             {vendors.length > 0 && (
               <ScrollView
@@ -82,12 +104,11 @@ export function AddProductForm({
               >
                 <View className="flex-row gap-1.5 pt-1">
                   {vendors.map((existingVendor) => {
-                    const isSelected =
-                      vendor.trim().toLowerCase() === existingVendor.toLowerCase();
+                    const isSelected = matchedVendor?.id === existingVendor.id;
                     return (
                       <Pressable
-                        key={existingVendor}
-                        onPress={() => setVendor(existingVendor)}
+                        key={existingVendor.id}
+                        onPress={() => setVendorName(existingVendor.name)}
                         className={`rounded-full border px-2.5 py-1 ${
                           isSelected
                             ? 'border-primary bg-primary'
@@ -101,7 +122,7 @@ export function AddProductForm({
                               : 'text-secondary-foreground'
                           }`}
                         >
-                          {existingVendor}
+                          {existingVendor.name}
                         </Text>
                       </Pressable>
                     );
@@ -110,6 +131,49 @@ export function AddProductForm({
               </ScrollView>
             )}
           </View>
+
+          {isNewVendor && (
+            <View className="gap-2 rounded-lg border border-border bg-secondary/40 p-2.5">
+              <Text className="text-xs font-semibold text-muted-foreground">
+                New Shop Details (Optional)
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View className="flex-row gap-1.5">
+                  {VENDOR_CATEGORIES.map((cat) => {
+                    const selected = vendorCategory === cat.value;
+                    return (
+                      <Pressable
+                        key={cat.value}
+                        onPress={() => setVendorCategory(cat.value)}
+                        className={`rounded-full border px-2.5 py-1 ${
+                          selected
+                            ? 'border-primary bg-primary'
+                            : 'border-border bg-background'
+                        }`}
+                      >
+                        <Text
+                          className={`text-xs ${
+                            selected ? 'font-semibold text-primary-foreground' : 'text-foreground'
+                          }`}
+                        >
+                          {cat.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+              <Input
+                placeholder="Location (e.g. Jaro Public Market, Iloilo City)"
+                value={vendorLocation}
+                onChangeText={setVendorLocation}
+              />
+            </View>
+          )}
 
           <View className="gap-1.5">
             <Label nativeID="product-price">Price (₱) *</Label>

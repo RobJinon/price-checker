@@ -1,5 +1,5 @@
 export type VendorPrice = {
-  vendor: string;
+  vendorId: string;
   price: number;
   updatedAt: string;
 };
@@ -20,8 +20,8 @@ export const MOCK_PRODUCTS: Product[] = [
     details:
       '10mm dual-magnetic circuit dynamic driver IEM with detachable 0.75mm 2-pin OFC flat cable and noise-isolating ergonomic resin shell.',
     prices: [
-      { vendor: 'Shopee', price: 349.0, updatedAt: '2026-11-10' },
-      { vendor: 'Lazada', price: 375.0, updatedAt: '2026-11-08' },
+      { vendorId: 'ven_shopee', price: 349.0, updatedAt: '2026-11-10' },
+      { vendorId: 'ven_lazada', price: 375.0, updatedAt: '2026-11-08' },
     ],
   },
   {
@@ -31,9 +31,9 @@ export const MOCK_PRODUCTS: Product[] = [
     details:
       '70% solution antiseptic and disinfectant in a 60ml flip-top pocket bottle with moisturizer to help prevent skin dryness.',
     prices: [
-      { vendor: 'Iloilo Supermart', price: 38.5, updatedAt: '2026-11-12' },
-      { vendor: 'Watsons', price: 42.0, updatedAt: '2026-11-05' },
-      { vendor: 'Mercury Drug', price: 41.25, updatedAt: '2026-11-01' },
+      { vendorId: 'ven_iloilo_supermart', price: 38.5, updatedAt: '2026-11-12' },
+      { vendorId: 'ven_watsons', price: 42.0, updatedAt: '2026-11-05' },
+      { vendorId: 'ven_mercury_drug', price: 41.25, updatedAt: '2026-11-01' },
     ],
   },
   {
@@ -43,8 +43,8 @@ export const MOCK_PRODUCTS: Product[] = [
     details:
       'Zero-calorie crunchy granular sugar substitute made with sucralose in a 150g resealable pouch, measures spoon-for-spoon like sugar.',
     prices: [
-      { vendor: 'SM Supermarket', price: 165.0, updatedAt: '2026-11-14' },
-      { vendor: 'Robinsons Supermarket', price: 172.5, updatedAt: '2026-11-09' },
+      { vendorId: 'ven_sm_supermarket', price: 165.0, updatedAt: '2026-11-14' },
+      { vendorId: 'ven_robinsons_supermarket', price: 172.5, updatedAt: '2026-11-09' },
     ],
   },
   {
@@ -54,8 +54,8 @@ export const MOCK_PRODUCTS: Product[] = [
     details:
       '750W 80 Plus Gold certified fully modular ATX 3.0 / PCIe 5.0 power supply with 120mm fluid dynamic bearing fan and flat black modular cables.',
     prices: [
-      { vendor: 'Shopee', price: 4295.0, updatedAt: '2026-11-15' },
-      { vendor: 'DynaQuest PC', price: 4450.0, updatedAt: '2026-11-11' },
+      { vendorId: 'ven_shopee', price: 4295.0, updatedAt: '2026-11-15' },
+      { vendorId: 'ven_dynaquest', price: 4450.0, updatedAt: '2026-11-11' },
     ],
   },
   {
@@ -65,8 +65,8 @@ export const MOCK_PRODUCTS: Product[] = [
     details:
       '750W 80 Plus Gold fully modular ATX 3.0 power supply with native 16-pin (12VHPWR) PCIe 5.0 connector, compact 140mm chassis, and DC-to-DC circuit design.',
     prices: [
-      { vendor: 'Datablitz', price: 5450.0, updatedAt: '2026-11-16' },
-      { vendor: 'PC Express', price: 5690.0, updatedAt: '2026-11-10' },
+      { vendorId: 'ven_datablitz', price: 5450.0, updatedAt: '2026-11-16' },
+      { vendorId: 'ven_pc_express', price: 5690.0, updatedAt: '2026-11-10' },
     ],
   },
   {
@@ -75,7 +75,7 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'Vention DisplayPort Cable 1.5m',
     details:
       '1.5m DisplayPort 1.4 braided cable supporting 8K@60Hz and 4K@144Hz high refresh rates, 32.4Gbps bandwidth, and gold-plated locking connectors.',
-    prices: [{ vendor: 'Shopee', price: 395.0, updatedAt: '2026-11-12' }],
+    prices: [{ vendorId: 'ven_shopee', price: 395.0, updatedAt: '2026-11-12' }],
   },
   {
     id: 'prod_dell_wh3024',
@@ -84,8 +84,8 @@ export const MOCK_PRODUCTS: Product[] = [
     details:
       'Dell Pro Wired ANC Headset with Active Noise Cancellation, AI-based noise-canceling boom microphone, memory foam leatherette ear cushions, and USB-C/USB-A inline call controls.',
     prices: [
-      { vendor: 'Dell Official Store', price: 3850.0, updatedAt: '2026-11-04' },
-      { vendor: 'Silicon Valley', price: 4190.0, updatedAt: '2026-11-02' },
+      { vendorId: 'ven_dell_official', price: 3850.0, updatedAt: '2026-11-04' },
+      { vendorId: 'ven_silicon_valley', price: 4190.0, updatedAt: '2026-11-02' },
     ],
   },
 ];
