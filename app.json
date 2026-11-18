@@ -49,7 +49,9 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to select product images.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to capture product images."
         }
-      ]
+      ],
+      "expo-audio",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

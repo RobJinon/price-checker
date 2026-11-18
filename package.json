@@ -38,6 +38,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "^57.0.33",
+    "expo-asset": "~57.0.21",
+    "expo-audio": "~57.0.5",
     "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.24",
     "expo-dev-client": "~57.0.21",
