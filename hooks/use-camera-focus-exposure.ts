@@ -23,12 +23,14 @@ export function useCameraFocusExposure({
   const [exposure, setExposure] = useState(0);
   const [appliedExposure, setAppliedExposure] = useState(0);
   const [isFocusLocked, setIsFocusLocked] = useState(false);
+  const [isManualFocus, setIsManualFocus] = useState(false);
   const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
 
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exposureThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingExposureRef = useRef(0);
   const exposureRef = useRef(exposure);
+  const isManualFocusRef = useRef(isManualFocus);
   const limitsRef = useRef({ minExposure, maxExposure });
   const didLongPressRef = useRef(false);
   const touchStartRef = useRef({
@@ -42,6 +44,9 @@ export function useCameraFocusExposure({
     exposureRef.current = exposure;
   }, [exposure]);
 
+  useEffect(() => {
+    isManualFocusRef.current = isManualFocus;
+  }, [isManualFocus]);
   useEffect(() => {
     limitsRef.current = { minExposure, maxExposure };
   }, [minExposure, maxExposure]);
@@ -111,6 +116,7 @@ export function useCameraFocusExposure({
 
   const unlockFocus = useCallback(async () => {
     setIsFocusLocked(false);
+    setIsManualFocus(false);
     setFocusPoint(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
@@ -120,10 +126,28 @@ export function useCameraFocusExposure({
     }
   }, [cameraRef]);
 
+  const toggleManualFocus = useCallback(
+    async (centerPoint?: { x: number; y: number }) => {
+      if (isManualFocusRef.current) {
+        await unlockFocus();
+        return;
+      }
+
+      setIsManualFocus(true);
+      if (centerPoint) {
+        await triggerFocus(centerPoint.x, centerPoint.y, true);
+      } else {
+        Haptics.selectionAsync();
+      }
+    },
+    [triggerFocus, unlockFocus]
+  );
+
   const resetAll = useCallback(
     (resetEv = false) => {
       clearTimers();
       setIsFocusLocked(false);
+      setIsManualFocus(false);
       setFocusPoint(null);
       if (resetEv) flushExposure(0);
     },
@@ -181,9 +205,10 @@ export function useCameraFocusExposure({
         const dist = Math.hypot(gestureState.dx, gestureState.dy);
         const duration = Date.now() - touchStartRef.current.time;
 
+        // Short tap triggers focus (locked if MF is active) and resets exposure to 0 EV
         if (dist < 8 && duration < 500) {
           const { locationX, locationY } = evt.nativeEvent;
-          triggerFocus(locationX, locationY, false);
+          triggerFocus(locationX, locationY, isManualFocusRef.current);
           flushExposure(0);
           return;
         }
@@ -204,8 +229,11 @@ export function useCameraFocusExposure({
     exposure,
     appliedExposure,
     isFocusLocked,
+    isManualFocus,
     focusPoint,
     panHandlers: panResponder.panHandlers,
+    triggerFocus,
+    toggleManualFocus,
     updateExposure,
     flushExposure,
     unlockFocus,

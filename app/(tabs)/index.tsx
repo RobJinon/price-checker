@@ -20,6 +20,7 @@ import {
 import { CameraControls } from '@/components/scanner/camera-controls';
 import { ExposureSlider } from '@/components/scanner/exposure-slider';
 import { FocusIndicator } from '@/components/scanner/focus-indicator';
+import { ManualFocusControl } from '@/components/scanner/manual-focus-control';
 import {
   ScannedDetails,
   ScannedProductDialog,
@@ -72,8 +73,11 @@ export default function ScannerScreen() {
     exposure,
     appliedExposure,
     isFocusLocked,
+    isManualFocus,
     focusPoint,
     panHandlers,
+    triggerFocus,
+    toggleManualFocus,
     updateExposure,
     flushExposure,
     unlockFocus,
@@ -293,24 +297,41 @@ export default function ScannerScreen() {
 
         {/* AF Lock Top Banner */}
         {isFocusLocked && (
-          <View className="absolute top-3 self-center z-20" pointerEvents="box-none">
+          <View
+            className="absolute top-3 left-0 right-0 z-20 items-center"
+            pointerEvents="box-none"
+          >
             <Button
               variant="default"
               size="sm"
               onPress={unlockFocus}
-              className="h-7 gap-1.5 rounded-full bg-amber-400 px-3 shadow-md active:bg-amber-500"
+              className="flex-row items-center gap-1.5 rounded-full bg-amber-400 px-3.5 py-1.5 shadow-md active:bg-amber-500"
             >
               <Lock size={12} color="#000" />
-              <Text className="text-xs font-bold text-black tracking-wide">
-                AF LOCK
-              </Text>
-              <Text className="text-[10px] font-medium text-black/75">
-                - Tap to unlock
+              <Text
+                numberOfLines={1}
+                className="text-xs font-bold tracking-wide text-black"
+              >
+                AF LOCK • Tap to unlock
               </Text>
             </Button>
           </View>
         )}
       </View>
+
+      {/* Manual Focus Controls */}
+      <ManualFocusControl
+        isManualMode={isManualFocus}
+        isFocusLocked={isFocusLocked}
+        onToggleManualMode={() =>
+          toggleManualFocus(
+            cameraLayout
+              ? { x: cameraLayout.width / 2, y: cameraLayout.height / 2 }
+              : undefined
+          )
+        }
+        onResetFocus={unlockFocus}
+      />
 
       {/* Exposure (EV) Slider */}
       <ExposureSlider
