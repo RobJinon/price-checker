@@ -1,9 +1,8 @@
-import BarcodeScanning from '@react-native-ml-kit/barcode-scanning';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
-import { Sun } from 'lucide-react-native';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { GestureResponderEvent, Pressable, StyleSheet, View } from 'react-native';
+import { Lock } from 'lucide-react-native';
+import { useCallback, useRef, useState, useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -16,10 +15,10 @@ import {
   CameraRef,
   useCameraDevice,
   useCameraPermission,
-  usePhotoOutput,
 } from 'react-native-vision-camera';
 
 import { CameraControls } from '@/components/scanner/camera-controls';
+import { ExposureSlider } from '@/components/scanner/exposure-slider';
 import { FocusIndicator } from '@/components/scanner/focus-indicator';
 import {
   ScannedDetails,
@@ -29,6 +28,8 @@ import { ViewfinderOverlay } from '@/components/scanner/viewfinder-overlay';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useProducts } from '@/context/products-context';
+import { useBarcodeScanner } from '@/hooks/use-barcode-scanner';
+import { useCameraFocusExposure } from '@/hooks/use-camera-focus-exposure';
 
 const ZOOM_LEVELS = [
   { label: '1x', value: 1 },
@@ -37,33 +38,73 @@ const ZOOM_LEVELS = [
   { label: '3x', value: 3 },
 ];
 
-const EXPOSURE_STEPS = [
-  { label: '-2', ev: -2 },
-  { label: '-1', ev: -1 },
-  { label: '0', ev: 0 },
-  { label: '+1', ev: 1 },
-  { label: '+2', ev: 2 },
-];
-
 export default function ScannerScreen() {
   const { findProductByBarcode } = useProducts();
   const cameraRef = useRef<CameraRef>(null);
-  const isScanningFrameRef = useRef(false);
   const { hasPermission, requestPermission } = useCameraPermission();
-  const photoOutput = usePhotoOutput();
 
   const [isFocused, setIsFocused] = useState(true);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [zoomIndex, setZoomIndex] = useState(0);
-  const [exposureIndex, setExposureIndex] = useState(2); // Default '0' EV
-  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number; key: number } | null>(
-    null
-  );
+  const [zoomValue, setZoomValue] = useState(ZOOM_LEVELS[0].value);
+  const zoomFrameRef = useRef<number | null>(null);
   const [scannedDetails, setScannedDetails] = useState<ScannedDetails | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (zoomFrameRef.current !== null) {
+        cancelAnimationFrame(zoomFrameRef.current);
+      }
+    };
+  }, []);
+
   const device = useCameraDevice(facing);
+  const minExposure = device?.supportsExposureBias ? device.minExposureBias : -2;
+  const maxExposure = device?.supportsExposureBias ? device.maxExposureBias : 2;
+
+  const {
+    exposure,
+    appliedExposure,
+    isFocusLocked,
+    focusPoint,
+    panHandlers,
+    updateExposure,
+    flushExposure,
+    unlockFocus,
+    resetAll,
+  } = useCameraFocusExposure({
+    cameraRef,
+    minExposure,
+    maxExposure,
+  });
+
+  const isSessionActive = isFocused && !scannedDetails;
+  const isCameraReady = isSessionActive && isPreviewReady;
+
+  const { photoOutput } = useBarcodeScanner({
+    isActive: isCameraReady && hasPermission && Boolean(device),
+    onBarcodeDetected: useCallback(
+      (result) => {
+        const matchedProduct = findProductByBarcode(result.data);
+
+        Haptics.notificationAsync(
+          matchedProduct
+            ? Haptics.NotificationFeedbackType.Success
+            : Haptics.NotificationFeedbackType.Warning
+        );
+
+        setScannedDetails({
+          result,
+          product: matchedProduct,
+          scannedAt: new Date().toLocaleTimeString(),
+        });
+      },
+      [findProductByBarcode]
+    ),
+  });
+
   const flipOpacity = useSharedValue(1);
   const flipScale = useSharedValue(1);
 
@@ -79,67 +120,10 @@ export default function ScannerScreen() {
         setIsFocused(false);
         setIsPreviewReady(false);
         setTorchEnabled(false);
+        resetAll(false);
       };
-    }, [])
+    }, [resetAll])
   );
-
-  // Periodic barcode scan via VisionCamera v5 PhotoOutput + ML Kit
-  useEffect(() => {
-    if (!isFocused || !isPreviewReady || !hasPermission || !device || scannedDetails) return;
-
-    const interval = setInterval(async () => {
-      if (isScanningFrameRef.current) return;
-      isScanningFrameRef.current = true;
-
-      try {
-        const photo = await photoOutput.capturePhoto({}, {});
-        try {
-          const tempPath = await photo.saveToTemporaryFileAsync();
-          const fileUri = tempPath.startsWith('file://')
-            ? tempPath
-            : `file://${tempPath}`;
-
-          const barcodes = await BarcodeScanning.scan(fileUri);
-          const hit = barcodes.find((b) => Boolean(b.value));
-
-          if (hit?.value) {
-            const matchedProduct = findProductByBarcode(hit.value);
-
-            Haptics.notificationAsync(
-              matchedProduct
-                ? Haptics.NotificationFeedbackType.Success
-                : Haptics.NotificationFeedbackType.Warning
-            );
-
-            setScannedDetails({
-              result: {
-                data: hit.value,
-                type: String(hit.format ?? 'barcode'),
-              },
-              product: matchedProduct,
-              scannedAt: new Date().toLocaleTimeString(),
-            });
-          }
-        } finally {
-          photo.dispose();
-        }
-      } catch {
-        // Ignore transient capture errors while focusing or switching cameras
-      } finally {
-        isScanningFrameRef.current = false;
-      }
-    }, 750);
-
-    return () => clearInterval(interval);
-  }, [
-    isFocused,
-    isPreviewReady,
-    hasPermission,
-    device,
-    scannedDetails,
-    photoOutput,
-    findProductByBarcode,
-  ]);
 
   const toggleFacing = () => {
     flipOpacity.value = withSequence(
@@ -151,30 +135,66 @@ export default function ScannerScreen() {
       withTiming(1, { duration: 200 })
     );
 
+    if (zoomFrameRef.current !== null) {
+      cancelAnimationFrame(zoomFrameRef.current);
+      zoomFrameRef.current = null;
+    }
+
     setIsPreviewReady(false);
+    resetAll(true);
     setFacing((prev) => {
       const next = prev === 'back' ? 'front' : 'back';
       if (next === 'front') setTorchEnabled(false);
       setZoomIndex(0);
+      setZoomValue(ZOOM_LEVELS[0].value);
       return next;
     });
   };
 
   const cycleZoom = () => {
     const nextIndex = (zoomIndex + 1) % ZOOM_LEVELS.length;
+    const maxZoom = device?.maxZoom ?? 4;
+    const startZoom = zoomValue;
+    const targetZoom = Math.min(ZOOM_LEVELS[nextIndex].value, maxZoom);
+
     setZoomIndex(nextIndex);
-  };
 
-  const handleTapToFocus = async (event: GestureResponderEvent) => {
-    const { locationX, locationY } = event.nativeEvent;
-    setFocusPoint({ x: locationX, y: locationY, key: Date.now() });
-
-    try {
-      await cameraRef.current?.focusTo({ x: locationX, y: locationY });
-    } catch {
-      // Ignore focus cancellation if user taps rapidly
+    if (zoomFrameRef.current !== null) {
+      cancelAnimationFrame(zoomFrameRef.current);
     }
+
+    const duration = 220;
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease-out cubic curve matching Reanimated's default timing feel
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = startZoom + (targetZoom - startZoom) * eased;
+
+      setZoomValue(Number(current.toFixed(3)));
+
+      if (progress < 1) {
+        zoomFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        zoomFrameRef.current = null;
+      }
+    };
+
+    zoomFrameRef.current = requestAnimationFrame(animate);
   };
+
+  const handleCameraError = useCallback((error: unknown) => {
+    const errStr = String(error);
+    if (
+      errStr.includes('OperationCanceledException') ||
+      errStr.includes('Cancelled by another')
+    ) {
+      return;
+    }
+    console.warn('Camera error:', error);
+  }, []);
 
   if (!hasPermission) {
     return (
@@ -199,15 +219,10 @@ export default function ScannerScreen() {
     );
   }
 
-  const isSessionActive = isFocused && !scannedDetails;
-  const isCameraReady = isSessionActive && isPreviewReady;
-
-  const zoomValue = Math.min(ZOOM_LEVELS[zoomIndex].value, device.maxZoom);
-
-  const targetEv = EXPOSURE_STEPS[exposureIndex].ev;
-  const exposureValue = device.supportsExposureBias
-    ? Math.max(device.minExposureBias, Math.min(device.maxExposureBias, targetEv))
+  const clampedExposure = device.supportsExposureBias
+    ? Math.max(minExposure, Math.min(maxExposure, appliedExposure))
     : undefined;
+  const exposureValue = isCameraReady ? clampedExposure : undefined;
 
   const torchMode =
     isCameraReady && device.hasTorch
@@ -215,10 +230,6 @@ export default function ScannerScreen() {
         ? 'on'
         : 'off'
       : undefined;
-
-  const handleCloseDialog = () => {
-    setScannedDetails(null);
-  };
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -231,7 +242,7 @@ export default function ScannerScreen() {
       </View>
 
       {/* 1:1 Square Camera & Overlay Wrapper */}
-      <Pressable onPress={handleTapToFocus} style={styles.cameraWrapper}>
+      <View style={styles.cameraWrapper}>
         <Animated.View style={[StyleSheet.absoluteFill, cameraTransitionStyle]}>
           <Camera
             key={device.id}
@@ -241,44 +252,58 @@ export default function ScannerScreen() {
             isActive={isSessionActive}
             outputs={[photoOutput]}
             zoom={isCameraReady ? zoomValue : undefined}
-            exposure={isCameraReady ? exposureValue : undefined}
+            exposure={exposureValue}
             torchMode={torchMode}
             onPreviewStarted={() => setIsPreviewReady(true)}
             onPreviewStopped={() => setIsPreviewReady(false)}
+            onError={handleCameraError}
           />
         </Animated.View>
 
-        <FocusIndicator point={focusPoint} />
         <ViewfinderOverlay onScanBoxLayout={() => {}} />
-      </Pressable>
 
-      {/* Exposure (EV) Selector */}
-      <View className="mt-2.5 flex-row items-center justify-center gap-1.5 px-4">
-        <Sun size={14} color="#facc15" />
-        <Text className="mr-1 text-xs font-medium text-muted-foreground">EV</Text>
-        {EXPOSURE_STEPS.map((step, index) => {
-          const isSelected = exposureIndex === index;
-          return (
-            <Pressable
-              key={step.label}
-              onPress={() => setExposureIndex(index)}
-              className={`rounded-full border px-2.5 py-0.5 ${
-                isSelected
-                  ? 'border-amber-400 bg-amber-400/20'
-                  : 'border-border bg-secondary'
-              }`}
+        {/* Full Viewfinder Touch Layer for Tap-to-Focus, Focus Lock, and Vertical Drag Exposure */}
+        <View style={StyleSheet.absoluteFill} {...panHandlers} />
+
+        <FocusIndicator
+          point={focusPoint}
+          isLocked={isFocusLocked}
+          exposure={exposure}
+          minExposure={minExposure}
+          maxExposure={maxExposure}
+        />
+
+        {/* AF Lock Top Banner */}
+        {isFocusLocked && (
+          <View className="absolute top-3 self-center z-20" pointerEvents="box-none">
+            <Button
+              variant="default"
+              size="sm"
+              onPress={unlockFocus}
+              className="h-7 gap-1.5 rounded-full bg-amber-400 px-3 shadow-md active:bg-amber-500"
             >
-              <Text
-                className={`text-xs ${
-                  isSelected ? 'font-bold text-amber-400' : 'text-muted-foreground'
-                }`}
-              >
-                {step.label}
+              <Lock size={12} color="#000" />
+              <Text className="text-xs font-bold text-black tracking-wide">
+                AF LOCK
               </Text>
-            </Pressable>
-          );
-        })}
+              <Text className="text-[10px] font-medium text-black/75">
+                - Tap to unlock
+              </Text>
+            </Button>
+          </View>
+        )}
       </View>
+
+      {/* Exposure (EV) Slider */}
+      <ExposureSlider
+        value={exposure}
+        min={minExposure}
+        max={maxExposure}
+        onChange={updateExposure}
+        onSettled={flushExposure}
+        onReset={() => flushExposure(0)}
+        disabled={!device.supportsExposureBias}
+      />
 
       {/* Camera Controls */}
       <View className="my-2 flex flex-col items-center justify-center gap-1">
@@ -295,7 +320,7 @@ export default function ScannerScreen() {
 
       <ScannedProductDialog
         scannedDetails={scannedDetails}
-        onClose={handleCloseDialog}
+        onClose={() => setScannedDetails(null)}
         onProductCreated={(product) =>
           setScannedDetails((prev) => (prev ? { ...prev, product } : null))
         }
