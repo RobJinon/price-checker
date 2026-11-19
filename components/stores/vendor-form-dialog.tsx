@@ -1,5 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, Platform, Pressable, ScrollView, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { NewVendorInput, useProducts } from '@/context/products-context';
 import { Vendor, VENDOR_CATEGORIES, VendorCategory } from '@/data/mock-vendors';
 
+
 type VendorFormDialogProps = {
   open: boolean;
   editingVendor: Vendor | null;
@@ -29,11 +35,34 @@ export function VendorFormDialog({
   onClose,
 }: VendorFormDialogProps) {
   const { vendors, addVendor, updateVendor } = useProducts();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const keyboardOffset = useSharedValue(0);
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState<VendorCategory>('supermarket');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
+
+  const animatedDialogStyle = useAnimatedStyle(() => ({
+    marginBottom: keyboardOffset.value,
+  }));
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      keyboardOffset.value = withTiming(e.endCoordinates.height, { duration: 250 });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardOffset.value = withTiming(0, { duration: 200 });
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (editingVendor) {
@@ -83,103 +112,114 @@ export function VendorFormDialog({
         if (!nextOpen) onClose();
       }}
     >
-      <DialogContent className="max-h-[85vh] w-[92vw] max-w-md">
-        <DialogHeader>
-          <DialogTitle>{editingVendor ? 'Edit Store' : 'Add New Store'}</DialogTitle>
-          <DialogDescription>
-            {editingVendor
-              ? 'Update store details, category, or location.'
-              : 'Add a supermarket, wet market, sari-sari store, or online shop.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <ScrollView
-          className="max-h-96 flex-shrink"
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator
+      <DialogContent className="max-h-full w-[92vw] max-w-md border-0 bg-transparent p-0 shadow-none">
+        <Animated.View
+          style={animatedDialogStyle}
+          className="gap-4 rounded-lg border border-border bg-background p-6 shadow-lg"
         >
-          <View className="gap-3.5 py-1 pr-1" onStartShouldSetResponder={() => true}>
-            <View className="gap-1.5">
-              <Label nativeID="store-name">Store / Shop Name *</Label>
-              <Input
-                aria-labelledby="store-name"
-                placeholder="e.g. Jaro Public Market, Iloilo Supermart"
-                value={name}
-                onChangeText={setName}
-              />
-              {isDuplicateName && (
-                <Text className="text-xs text-destructive">
-                  A store with this name already exists.
-                </Text>
-              )}
-            </View>
+          <DialogHeader>
+            <DialogTitle>{editingVendor ? 'Edit Store' : 'Add New Store'}</DialogTitle>
+            <DialogDescription>
+              {editingVendor
+                ? 'Update store details, category, or location.'
+                : 'Add a supermarket, wet market, sari-sari store, or online shop.'}
+            </DialogDescription>
+          </DialogHeader>
 
-            <View className="gap-1.5">
-              <Label nativeID="store-category">Category *</Label>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                <View className="flex-row gap-1.5 py-0.5">
-                  {VENDOR_CATEGORIES.map((cat) => {
-                    const selected = category === cat.value;
-                    return (
-                      <Pressable
-                        key={cat.value}
-                        onPress={() => setCategory(cat.value)}
-                        className={`rounded-full border px-3 py-1.5 ${
-                          selected
-                            ? 'border-primary bg-primary'
-                            : 'border-border bg-secondary'
-                        }`}
-                      >
-                        <Text
-                          className={`text-xs ${
+          <ScrollView
+            ref={scrollViewRef}
+            className="max-h-96 flex-shrink"
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
+            <View className="gap-3.5 py-1 pr-1" onStartShouldSetResponder={() => true}>
+              <View className="gap-1.5">
+                <Label nativeID="store-name">Store / Shop Name *</Label>
+                <Input
+                  aria-labelledby="store-name"
+                  placeholder="e.g. Jaro Public Market, Iloilo Supermart"
+                  value={name}
+                  onChangeText={setName}
+                />
+                {isDuplicateName && (
+                  <Text className="text-xs text-destructive">
+                    A store with this name already exists.
+                  </Text>
+                )}
+              </View>
+
+              <View className="gap-1.5">
+                <Label nativeID="store-category">Category *</Label>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <View className="flex-row gap-1.5 py-0.5">
+                    {VENDOR_CATEGORIES.map((cat) => {
+                      const selected = category === cat.value;
+                      return (
+                        <Pressable
+                          key={cat.value}
+                          onPress={() => setCategory(cat.value)}
+                          className={`rounded-full border px-3 py-1.5 ${
                             selected
-                              ? 'font-semibold text-primary-foreground'
-                              : 'text-secondary-foreground'
+                              ? 'border-primary bg-primary'
+                              : 'border-border bg-secondary'
                           }`}
                         >
-                          {cat.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            </View>
+                          <Text
+                            className={`text-xs ${
+                              selected
+                                ? 'font-semibold text-primary-foreground'
+                                : 'text-secondary-foreground'
+                            }`}
+                          >
+                            {cat.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
 
-            <View className="gap-1.5">
-              <Label nativeID="store-location">Location / Branch</Label>
-              <Input
-                aria-labelledby="store-location"
-                placeholder="e.g. SM City Iloilo, Mandurriao or Online"
-                value={location}
-                onChangeText={setLocation}
-              />
-            </View>
+              <View className="gap-1.5">
+                <Label nativeID="store-location">Location / Branch</Label>
+                <Input
+                  aria-labelledby="store-location"
+                  placeholder="e.g. SM City Iloilo, Mandurriao or Online"
+                  value={location}
+                  onChangeText={setLocation}
+                />
+              </View>
 
-            <View className="gap-1.5">
-              <Label nativeID="store-description">Description</Label>
-              <Textarea
-                aria-labelledby="store-description"
-                placeholder="Notes about this store, operating hours, or specialties..."
-                value={description}
-                onChangeText={setDescription}
-              />
+              <View className="gap-1.5">
+                <Label nativeID="store-description">Description</Label>
+                <Textarea
+                  aria-labelledby="store-description"
+                  placeholder="Notes about this store, operating hours, or specialties..."
+                  value={description}
+                  onChangeText={setDescription}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 150);
+                  }}
+                />
+              </View>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
 
-        <DialogFooter className="flex-row gap-3">
-          <Button variant="outline" className="flex-1" onPress={onClose}>
-            <Text>Cancel</Text>
-          </Button>
-          <Button className="flex-1" disabled={!isValid} onPress={handleSubmit}>
-            <Text>{editingVendor ? 'Save Changes' : 'Add Store'}</Text>
-          </Button>
-        </DialogFooter>
+          <DialogFooter className="flex-row gap-3">
+            <Button variant="outline" className="flex-1" onPress={onClose}>
+              <Text>Cancel</Text>
+            </Button>
+            <Button className="flex-1" disabled={!isValid} onPress={handleSubmit}>
+              <Text>{editingVendor ? 'Save Changes' : 'Add Store'}</Text>
+            </Button>
+          </DialogFooter>
+        </Animated.View>
       </DialogContent>
     </Dialog>
   );

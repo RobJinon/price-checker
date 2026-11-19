@@ -1,5 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, Platform, Pressable, ScrollView, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +29,8 @@ type ManualAddProductDialogProps = {
 
 export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialogProps) {
   const { vendors, addProduct } = useProducts();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const keyboardOffset = useSharedValue(0);
 
   const [barcode, setBarcode] = useState('');
   const [name, setName] = useState('');
@@ -32,6 +39,27 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
   const [vendorLocation, setVendorLocation] = useState('');
   const [price, setPrice] = useState('');
   const [details, setDetails] = useState('');
+
+  const animatedDialogStyle = useAnimatedStyle(() => ({
+    marginBottom: keyboardOffset.value,
+  }));
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      keyboardOffset.value = withTiming(e.endCoordinates.height, { duration: 250 });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardOffset.value = withTiming(0, { duration: 200 });
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -80,19 +108,24 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
         if (!nextOpen) onClose();
       }}
     >
-      <DialogContent className="max-h-[85vh] w-[92vw] max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add New Product</DialogTitle>
-          <DialogDescription>
-            Enter product details and its initial store price.
-          </DialogDescription>
-        </DialogHeader>
-
-        <ScrollView
-          className="max-h-96 flex-shrink"
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator
+      <DialogContent className="max-h-full w-[92vw] max-w-md border-0 bg-transparent p-0 shadow-none">
+        <Animated.View
+          style={animatedDialogStyle}
+          className="gap-4 rounded-lg border border-border bg-background p-6 shadow-lg"
         >
+          <DialogHeader>
+            <DialogTitle>Add New Product</DialogTitle>
+            <DialogDescription>
+              Enter product details and its initial store price.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollView
+            ref={scrollViewRef}
+            className="max-h-96 flex-shrink"
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
           <View className="gap-3.5 py-1 pr-1" onStartShouldSetResponder={() => true}>
             <View className="gap-1.5">
               <Label nativeID="manual-product-name">Product Name *</Label>
@@ -221,6 +254,11 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
                 placeholder="Size, variant, or short description..."
                 value={details}
                 onChangeText={setDetails}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 150);
+                }}
               />
             </View>
           </View>
@@ -234,6 +272,7 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
             <Text>Save Product</Text>
           </Button>
         </DialogFooter>
+        </Animated.View>
       </DialogContent>
     </Dialog>
   );

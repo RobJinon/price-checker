@@ -1,6 +1,11 @@
 import { Plus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Keyboard, Platform, Pressable, ScrollView, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { AddVendorPriceForm } from '@/components/scanner/add-vendor-price-form';
 import { Badge } from '@/components/ui/badge';
@@ -25,9 +30,32 @@ type ProductDetailDialogProps = {
 export function ProductDetailDialog({ product, onClose }: ProductDetailDialogProps) {
   const { products, getVendorById, upsertVendorPrice } = useProducts();
   const [isAddingPrice, setIsAddingPrice] = useState(false);
+  const keyboardOffset = useSharedValue(0);
+
+  const animatedDialogStyle = useAnimatedStyle(() => ({
+    marginBottom: keyboardOffset.value,
+  }));
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      keyboardOffset.value = withTiming(e.endCoordinates.height, { duration: 250 });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardOffset.value = withTiming(0, { duration: 200 });
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     setIsAddingPrice(false);
+    keyboardOffset.value = 0;
   }, [product?.id]);
 
   if (!product) return null;
@@ -68,8 +96,12 @@ export function ProductDetailDialog({ product, onClose }: ProductDetailDialogPro
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-[85vh] w-[92vw] max-w-md">
-        {isAddingPrice ? (
+      <DialogContent className="max-h-full w-[92vw] max-w-md border-0 bg-transparent p-0 shadow-none">
+        <Animated.View
+          style={animatedDialogStyle}
+          className="gap-4 rounded-lg border border-border bg-background p-6 shadow-lg"
+        >
+          {isAddingPrice ? (
           <AddVendorPriceForm
             productName={liveProduct.name}
             existingPrices={liveProduct.prices}
@@ -176,6 +208,7 @@ export function ProductDetailDialog({ product, onClose }: ProductDetailDialogPro
             </DialogFooter>
           </>
         )}
+      </Animated.View>
       </DialogContent>
     </Dialog>
   );
