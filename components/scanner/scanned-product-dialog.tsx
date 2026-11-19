@@ -1,4 +1,3 @@
-import { BarcodeScanningResult } from 'expo-camera';
 import { Plus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform, Pressable, ScrollView, View } from 'react-native';
@@ -26,7 +25,10 @@ import { useProducts } from '@/context/products-context';
 import { Product } from '@/data/mock-products';
 
 export type ScannedDetails = {
-  result: BarcodeScanningResult;
+  result: {
+    data: string;
+    type: string;
+  };
   product: Product | null;
   scannedAt: string;
 };

@@ -1,22 +1,23 @@
-import { BarcodeScanningResult, CameraView, useCameraPermissions } from 'expo-camera';
+import BarcodeScanning from '@react-native-ml-kit/barcode-scanning';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import {
-  GestureResponderEvent,
-  LayoutRectangle,
-  Pressable,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Sun } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { GestureResponderEvent, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
-  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Camera,
+  CameraRef,
+  useCameraDevice,
+  useCameraPermission,
+  usePhotoOutput,
+} from 'react-native-vision-camera';
 
 import { CameraControls } from '@/components/scanner/camera-controls';
 import { FocusIndicator } from '@/components/scanner/focus-indicator';
@@ -29,37 +30,42 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useProducts } from '@/context/products-context';
 
-const AnimatedCameraView = Animated.createAnimatedComponent(CameraView);
-
 const ZOOM_LEVELS = [
-  { label: '1x', value: 0.16 },
-  { label: '1.5x', value: 0.3 },
-  { label: '2x', value: 0.5 },
-  { label: '3x', value: 0.9 },
+  { label: '1x', value: 1 },
+  { label: '1.5x', value: 1.5 },
+  { label: '2x', value: 2 },
+  { label: '3x', value: 3 },
+];
+
+const EXPOSURE_STEPS = [
+  { label: '-2', ev: -2 },
+  { label: '-1', ev: -1 },
+  { label: '0', ev: 0 },
+  { label: '+1', ev: 1 },
+  { label: '+2', ev: 2 },
 ];
 
 export default function ScannerScreen() {
   const { findProductByBarcode } = useProducts();
-  const cameraRef = useRef<CameraView>(null);
-  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraRef>(null);
+  const isScanningFrameRef = useRef(false);
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const photoOutput = usePhotoOutput();
+
   const [isFocused, setIsFocused] = useState(true);
+  const [isPreviewReady, setIsPreviewReady] = useState(false);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [zoomIndex, setZoomIndex] = useState(0);
-  const [autofocus, setAutofocus] = useState<'on' | 'off'>('on');
+  const [exposureIndex, setExposureIndex] = useState(2); // Default '0' EV
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number; key: number } | null>(
     null
   );
-  const [scanBoxLayout, setScanBoxLayout] = useState<LayoutRectangle | null>(null);
   const [scannedDetails, setScannedDetails] = useState<ScannedDetails | null>(null);
 
-  const animatedZoom = useSharedValue(ZOOM_LEVELS[0].value);
+  const device = useCameraDevice(facing);
   const flipOpacity = useSharedValue(1);
   const flipScale = useSharedValue(1);
-
-  const animatedCameraProps = useAnimatedProps(() => ({
-    zoom: animatedZoom.value,
-  }));
 
   const cameraTransitionStyle = useAnimatedStyle(() => ({
     opacity: flipOpacity.value,
@@ -71,10 +77,69 @@ export default function ScannerScreen() {
       setIsFocused(true);
       return () => {
         setIsFocused(false);
+        setIsPreviewReady(false);
         setTorchEnabled(false);
       };
     }, [])
   );
+
+  // Periodic barcode scan via VisionCamera v5 PhotoOutput + ML Kit
+  useEffect(() => {
+    if (!isFocused || !isPreviewReady || !hasPermission || !device || scannedDetails) return;
+
+    const interval = setInterval(async () => {
+      if (isScanningFrameRef.current) return;
+      isScanningFrameRef.current = true;
+
+      try {
+        const photo = await photoOutput.capturePhoto({}, {});
+        try {
+          const tempPath = await photo.saveToTemporaryFileAsync();
+          const fileUri = tempPath.startsWith('file://')
+            ? tempPath
+            : `file://${tempPath}`;
+
+          const barcodes = await BarcodeScanning.scan(fileUri);
+          const hit = barcodes.find((b) => Boolean(b.value));
+
+          if (hit?.value) {
+            const matchedProduct = findProductByBarcode(hit.value);
+
+            Haptics.notificationAsync(
+              matchedProduct
+                ? Haptics.NotificationFeedbackType.Success
+                : Haptics.NotificationFeedbackType.Warning
+            );
+
+            setScannedDetails({
+              result: {
+                data: hit.value,
+                type: String(hit.format ?? 'barcode'),
+              },
+              product: matchedProduct,
+              scannedAt: new Date().toLocaleTimeString(),
+            });
+          }
+        } finally {
+          photo.dispose();
+        }
+      } catch {
+        // Ignore transient capture errors while focusing or switching cameras
+      } finally {
+        isScanningFrameRef.current = false;
+      }
+    }, 750);
+
+    return () => clearInterval(interval);
+  }, [
+    isFocused,
+    isPreviewReady,
+    hasPermission,
+    device,
+    scannedDetails,
+    photoOutput,
+    findProductByBarcode,
+  ]);
 
   const toggleFacing = () => {
     flipOpacity.value = withSequence(
@@ -86,9 +151,11 @@ export default function ScannerScreen() {
       withTiming(1, { duration: 200 })
     );
 
+    setIsPreviewReady(false);
     setFacing((prev) => {
       const next = prev === 'back' ? 'front' : 'back';
       if (next === 'front') setTorchEnabled(false);
+      setZoomIndex(0);
       return next;
     });
   };
@@ -96,23 +163,20 @@ export default function ScannerScreen() {
   const cycleZoom = () => {
     const nextIndex = (zoomIndex + 1) % ZOOM_LEVELS.length;
     setZoomIndex(nextIndex);
-    animatedZoom.value = withTiming(ZOOM_LEVELS[nextIndex].value, { duration: 220 });
   };
 
-  const handleTapToFocus = (event: GestureResponderEvent) => {
+  const handleTapToFocus = async (event: GestureResponderEvent) => {
     const { locationX, locationY } = event.nativeEvent;
     setFocusPoint({ x: locationX, y: locationY, key: Date.now() });
 
-    // Briefly toggle autofocus off -> on to force the lens to re-focus
-    setAutofocus('off');
-    setTimeout(() => setAutofocus('on'), 120);
+    try {
+      await cameraRef.current?.focusTo({ x: locationX, y: locationY });
+    } catch {
+      // Ignore focus cancellation if user taps rapidly
+    }
   };
 
-  if (!permission) {
-    return <View style={styles.container} />;
-  }
-
-  if (!permission.granted) {
+  if (!hasPermission) {
     return (
       <View className="flex-1 items-center justify-center gap-4 bg-background px-6">
         <Text className="text-center text-base text-foreground">
@@ -125,77 +189,100 @@ export default function ScannerScreen() {
     );
   }
 
-  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
-    if (!scanBoxLayout || !result.bounds) return;
-
-    const { origin, size } = result.bounds;
-    const barcodeCenterX = origin.x + size.width / 2;
-    const barcodeCenterY = origin.y + size.height / 2;
-
-    const isInsideBox =
-      barcodeCenterX >= scanBoxLayout.x &&
-      barcodeCenterX <= scanBoxLayout.x + scanBoxLayout.width &&
-      barcodeCenterY >= scanBoxLayout.y &&
-      barcodeCenterY <= scanBoxLayout.y + scanBoxLayout.height;
-
-    if (!isInsideBox) return;
-
-    const matchedProduct = findProductByBarcode(result.data);
-
-    Haptics.notificationAsync(
-      matchedProduct
-        ? Haptics.NotificationFeedbackType.Success
-        : Haptics.NotificationFeedbackType.Warning
+  if (!device) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background px-6">
+        <Text className="text-center text-base text-muted-foreground">
+          No {facing} camera device found.
+        </Text>
+      </View>
     );
+  }
 
-    cameraRef.current?.pausePreview();
-    setScannedDetails({
-      result,
-      product: matchedProduct,
-      scannedAt: new Date().toLocaleTimeString(),
-    });
-  };
+  const isSessionActive = isFocused && !scannedDetails;
+  const isCameraReady = isSessionActive && isPreviewReady;
+
+  const zoomValue = Math.min(ZOOM_LEVELS[zoomIndex].value, device.maxZoom);
+
+  const targetEv = EXPOSURE_STEPS[exposureIndex].ev;
+  const exposureValue = device.supportsExposureBias
+    ? Math.max(device.minExposureBias, Math.min(device.maxExposureBias, targetEv))
+    : undefined;
+
+  const torchMode =
+    isCameraReady && device.hasTorch
+      ? facing === 'back' && torchEnabled
+        ? 'on'
+        : 'off'
+      : undefined;
 
   const handleCloseDialog = () => {
     setScannedDetails(null);
-    cameraRef.current?.resumePreview();
   };
 
   return (
-    <SafeAreaView>
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
         <View>
           <Text className="text-xl font-bold text-foreground">Barcode Scanner</Text>
-          <Text className="text-xs text-muted-foreground">
-            Scan product barcode
-          </Text>
+          <Text className="text-xs text-muted-foreground">Scan product barcode</Text>
         </View>
       </View>
 
       {/* 1:1 Square Camera & Overlay Wrapper */}
       <Pressable onPress={handleTapToFocus} style={styles.cameraWrapper}>
-        {isFocused && (
-          <Animated.View style={[StyleSheet.absoluteFill, cameraTransitionStyle]}>
-            <AnimatedCameraView
-              ref={cameraRef}
-              style={StyleSheet.absoluteFill}
-              facing={facing}
-              ratio="1:1"
-              autofocus={autofocus}
-              animatedProps={animatedCameraProps}
-              enableTorch={facing === 'back' && torchEnabled}
-              onBarcodeScanned={scannedDetails ? undefined : handleBarcodeScanned}
-            />
-          </Animated.View>
-        )}
+        <Animated.View style={[StyleSheet.absoluteFill, cameraTransitionStyle]}>
+          <Camera
+            key={device.id}
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            device={device}
+            isActive={isSessionActive}
+            outputs={[photoOutput]}
+            zoom={isCameraReady ? zoomValue : undefined}
+            exposure={isCameraReady ? exposureValue : undefined}
+            torchMode={torchMode}
+            onPreviewStarted={() => setIsPreviewReady(true)}
+            onPreviewStopped={() => setIsPreviewReady(false)}
+          />
+        </Animated.View>
 
         <FocusIndicator point={focusPoint} />
-        <ViewfinderOverlay onScanBoxLayout={setScanBoxLayout} />
+        <ViewfinderOverlay onScanBoxLayout={() => {}} />
       </Pressable>
-      
-      <View className='flex flex-col justify-center my-2 items-center gap-1'>
-        <Text className='text-neutral-500 text-sm'>Camera Controls</Text>
+
+      {/* Exposure (EV) Selector */}
+      <View className="mt-2.5 flex-row items-center justify-center gap-1.5 px-4">
+        <Sun size={14} color="#facc15" />
+        <Text className="mr-1 text-xs font-medium text-muted-foreground">EV</Text>
+        {EXPOSURE_STEPS.map((step, index) => {
+          const isSelected = exposureIndex === index;
+          return (
+            <Pressable
+              key={step.label}
+              onPress={() => setExposureIndex(index)}
+              className={`rounded-full border px-2.5 py-0.5 ${
+                isSelected
+                  ? 'border-amber-400 bg-amber-400/20'
+                  : 'border-border bg-secondary'
+              }`}
+            >
+              <Text
+                className={`text-xs ${
+                  isSelected ? 'font-bold text-amber-400' : 'text-muted-foreground'
+                }`}
+              >
+                {step.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Camera Controls */}
+      <View className="my-2 flex flex-col items-center justify-center gap-1">
+        <Text className="text-sm text-neutral-500">Camera Controls</Text>
         <CameraControls
           zoomLabel={ZOOM_LEVELS[zoomIndex].label}
           onCycleZoom={cycleZoom}
@@ -218,18 +305,12 @@ export default function ScannerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    backgroundColor: '#000',
-    paddingTop: 64,
-  },
   cameraWrapper: {
     width: '100%',
     aspectRatio: 1,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#000',
   },
 });
