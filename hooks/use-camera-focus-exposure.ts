@@ -99,11 +99,11 @@ export function useCameraFocusExposure({
           {
             responsiveness: 'snappy',
             adaptiveness: lock ? 'locked' : 'continuous',
-            autoResetAfter: lock ? null : 4,
+            ...(lock ? {} : { autoResetAfter: 4 }),
           }
         );
-      } catch {
-        // Ignore focus cancellation if user taps rapidly
+      } catch (err) {
+        console.warn('focusTo failed:', err);
       }
     },
     [cameraRef]

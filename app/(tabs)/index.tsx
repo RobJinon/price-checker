@@ -1,8 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { Lock } from 'lucide-react-native';
-import { useCallback, useRef, useState, useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LayoutRectangle, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -32,8 +32,8 @@ import { useBarcodeScanner } from '@/hooks/use-barcode-scanner';
 import { useCameraFocusExposure } from '@/hooks/use-camera-focus-exposure';
 
 const ZOOM_LEVELS = [
+  { label: '1.4x', value: 1.4  },
   { label: '1x', value: 1 },
-  { label: '1.5x', value: 1.5 },
   { label: '2x', value: 2 },
   { label: '3x', value: 3 },
 ];
@@ -50,6 +50,10 @@ export default function ScannerScreen() {
   const [zoomIndex, setZoomIndex] = useState(0);
   const [zoomValue, setZoomValue] = useState(ZOOM_LEVELS[0].value);
   const zoomFrameRef = useRef<number | null>(null);
+  const [cameraLayout, setCameraLayout] = useState<{ width: number; height: number } | null>(
+    null
+  );
+  const [scanBoxLayout, setScanBoxLayout] = useState<LayoutRectangle | null>(null);
   const [scannedDetails, setScannedDetails] = useState<ScannedDetails | null>(null);
 
   useEffect(() => {
@@ -85,6 +89,9 @@ export default function ScannerScreen() {
 
   const { photoOutput } = useBarcodeScanner({
     isActive: isCameraReady && hasPermission && Boolean(device),
+    scanBoxLayout,
+    containerLayout: cameraLayout,
+    isFrontCamera: facing === 'front',
     onBarcodeDetected: useCallback(
       (result) => {
         const matchedProduct = findProductByBarcode(result.data);
@@ -242,7 +249,14 @@ export default function ScannerScreen() {
       </View>
 
       {/* 1:1 Square Camera & Overlay Wrapper */}
-      <View style={styles.cameraWrapper}>
+      {/* 1:1 Square Camera & Overlay Wrapper */}
+      <View
+        style={styles.cameraWrapper}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          setCameraLayout({ width, height });
+        }}
+      >
         <Animated.View style={[StyleSheet.absoluteFill, cameraTransitionStyle]}>
           <Camera
             key={device.id}
@@ -260,10 +274,14 @@ export default function ScannerScreen() {
           />
         </Animated.View>
 
-        <ViewfinderOverlay onScanBoxLayout={() => {}} />
+        <ViewfinderOverlay onScanBoxLayout={setScanBoxLayout} />
 
         {/* Full Viewfinder Touch Layer for Tap-to-Focus, Focus Lock, and Vertical Drag Exposure */}
-        <View style={StyleSheet.absoluteFill} {...panHandlers} />
+        <View
+          collapsable={false}
+          className="absolute inset-0 bg-transparent"
+          {...panHandlers}
+        />
 
         <FocusIndicator
           point={focusPoint}
