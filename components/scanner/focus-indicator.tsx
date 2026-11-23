@@ -1,4 +1,4 @@
-import { Lock, Sun } from 'lucide-react-native';
+import { Lock } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, {
@@ -22,10 +22,7 @@ type FocusIndicatorProps = {
 
 export function FocusIndicator({
   point,
-  isLocked = false,
-  exposure = 0,
-  minExposure = -2,
-  maxExposure = 2,
+  isLocked = false
 }: FocusIndicatorProps) {
   const scale = useSharedValue(1.35);
   const opacity = useSharedValue(0);
@@ -56,13 +53,6 @@ export function FocusIndicator({
   }));
 
   if (!point) return null;
-
-  // Calculate sun position along the vertical rail (height 44px range)
-  const range = maxExposure > minExposure ? maxExposure - minExposure : 4;
-  const normalizedExp = Math.max(0, Math.min(1, (exposure - minExposure) / range));
-  const sunTop = (1 - normalizedExp) * 44; // higher EV = higher position
-
-  const isNonZeroExposure = Math.abs(exposure) >= 0.1;
 
   return (
     <Animated.View
@@ -100,29 +90,6 @@ export function FocusIndicator({
         <View className="absolute -right-1 top-[30px] h-0.5 w-1 bg-amber-400" />
       </View>
 
-      {/* Vertical Exposure Rail & Sun Indicator */}
-      <View className="absolute left-[72px] top-1 h-14 w-12 justify-center">
-        {/* Vertical Rail Line */}
-        <View className="absolute bottom-1 left-1.5 top-1 w-[1.5px] rounded-full bg-white/30" />
-
-        {/* Sliding Sun Icon */}
-        <View
-          className="absolute left-0 flex-row items-center gap-1"
-          style={{ top: sunTop }}
-        >
-          <Sun size={13} color="#facc15" />
-          {isNonZeroExposure && (
-            <Badge
-              variant="outline"
-              className="rounded border border-amber-400/50 bg-black/75 px-1 py-0"
-            >
-              <Text className="text-[9px] font-bold font-mono text-amber-400">
-                {exposure > 0 ? `+${exposure.toFixed(1)}` : exposure.toFixed(1)}
-              </Text>
-            </Badge>
-          )}
-        </View>
-      </View>
     </Animated.View>
   );
 }
