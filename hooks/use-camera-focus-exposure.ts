@@ -1,7 +1,7 @@
+import { CameraView, FocusMode } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { PanResponder } from 'react-native';
-import { CameraRef } from 'react-native-vision-camera';
 
 export type FocusPoint = {
   x: number;
@@ -10,21 +10,22 @@ export type FocusPoint = {
 };
 
 type UseCameraFocusExposureOptions = {
-  cameraRef: RefObject<CameraRef | null>;
-  minExposure: number;
-  maxExposure: number;
+  cameraRef?: RefObject<CameraView | null>;
+  minExposure?: number;
+  maxExposure?: number;
 };
 
 export function useCameraFocusExposure({
-  cameraRef,
-  minExposure,
-  maxExposure,
-}: UseCameraFocusExposureOptions) {
+  minExposure = -2,
+  maxExposure = 2,
+}: UseCameraFocusExposureOptions = {}) {
   const [exposure, setExposure] = useState(0);
   const [appliedExposure, setAppliedExposure] = useState(0);
   const [isFocusLocked, setIsFocusLocked] = useState(false);
   const [isManualFocus, setIsManualFocus] = useState(false);
   const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
+
+  const autofocus: FocusMode = isFocusLocked || isManualFocus ? 'off' : 'on';
 
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exposureThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,44 +88,26 @@ export function useCameraFocusExposure({
     setAppliedExposure(target);
   }, []);
 
-  const triggerFocus = useCallback(
-    async (x: number, y: number, lock: boolean) => {
-      setFocusPoint({ x, y, key: Date.now() });
-      setIsFocusLocked(lock);
+  const triggerFocus = useCallback(async (x: number, y: number, lock: boolean) => {
+    setFocusPoint({ x, y, key: Date.now() });
 
-      if (lock) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-
-      try {
-        await cameraRef.current?.focusTo(
-          { x, y },
-          {
-            responsiveness: 'snappy',
-            adaptiveness: lock ? 'locked' : 'continuous',
-            ...(lock ? {} : { autoResetAfter: 4 }),
-          }
-        );
-      } catch (err) {
-        console.warn('focusTo failed:', err);
-      }
-    },
-    [cameraRef]
-  );
+    if (lock) {
+      // Pulse autofocus 'on' briefly so CameraView refocuses before locking ('off')
+      setIsFocusLocked(false);
+      requestAnimationFrame(() => setIsFocusLocked(true));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      setIsFocusLocked(false);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, []);
 
   const unlockFocus = useCallback(async () => {
     setIsFocusLocked(false);
     setIsManualFocus(false);
     setFocusPoint(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      await cameraRef.current?.resetFocus();
-    } catch {
-      // Ignore
-    }
-  }, [cameraRef]);
+  }, []);
 
   const toggleManualFocus = useCallback(
     async (centerPoint?: { x: number; y: number }) => {
@@ -226,6 +209,7 @@ export function useCameraFocusExposure({
   ).current;
 
   return {
+    autofocus,
     exposure,
     appliedExposure,
     isFocusLocked,
