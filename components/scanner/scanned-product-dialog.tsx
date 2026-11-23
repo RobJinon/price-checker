@@ -1,4 +1,5 @@
-import { Plus } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Plus, ShoppingCart } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform, Pressable, ScrollView, View } from 'react-native';
 import Animated, {
@@ -21,8 +22,10 @@ import {
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Text } from '@/components/ui/text';
+import { useCart } from '@/context/cart-context';
 import { useProducts } from '@/context/products-context';
 import { Product } from '@/data/mock-products';
+import { VendorCategory } from '@/data/mock-vendors';
 
 export type ScannedDetails = {
   result: {
@@ -45,6 +48,7 @@ export function ScannedProductDialog({
   onProductCreated,
 }: ScannedProductDialogProps) {
   const { products, getVendorById, addProduct, upsertVendorPrice } = useProducts();
+  const { addToCart } = useCart();
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isAddingPrice, setIsAddingPrice] = useState(false);
   const keyboardOffset = useSharedValue(0);
@@ -68,13 +72,13 @@ export function ScannedProductDialog({
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [keyboardOffset]);
 
   useEffect(() => {
     setIsAddingProduct(false);
     setIsAddingPrice(false);
     keyboardOffset.value = 0;
-  }, [scannedDetails?.result.data]);
+  }, [scannedDetails?.result.data, keyboardOffset]);
 
   if (!scannedDetails) return null;
 
@@ -82,15 +86,15 @@ export function ScannedProductDialog({
     ? (products.find((p) => p.id === scannedDetails.product?.id) ?? scannedDetails.product)
     : null;
 
-  const handleSaveNewProduct = (data: {
+  const handleSaveNewProduct = async (data: {
     name: string;
     vendorName: string;
-    vendorCategory?: import('@/data/mock-vendors').VendorCategory;
+    vendorCategory?: VendorCategory;
     vendorLocation?: string;
     price: number;
     details: string;
   }) => {
-    const created = addProduct({
+    const created = await addProduct({
       barcode: scannedDetails.result.data,
       ...data,
     });
@@ -98,14 +102,14 @@ export function ScannedProductDialog({
     onProductCreated(created);
   };
 
-  const handleSaveVendorPrice = (data: {
+  const handleSaveVendorPrice = async (data: {
     vendorName: string;
-    vendorCategory?: import('@/data/mock-vendors').VendorCategory;
+    vendorCategory?: VendorCategory;
     vendorLocation?: string;
     price: number;
   }) => {
     if (!liveProduct) return;
-    upsertVendorPrice(
+    await upsertVendorPrice(
       liveProduct.id,
       {
         name: data.vendorName,
@@ -165,7 +169,7 @@ export function ScannedProductDialog({
               </DialogHeader>
 
               <ScrollView
-                className="max-h-full flex-shrink my-4"
+                className="my-4 max-h-full flex-shrink"
                 nestedScrollEnabled
                 showsVerticalScrollIndicator
               >
@@ -183,7 +187,7 @@ export function ScannedProductDialog({
                         <Text className="text-xs font-semibold text-emerald-500">Add Price</Text>
                       </Pressable>
                     </View>
-                    <View className='gap-1 my-2'>
+                    <View className="my-2 gap-1">
                       {sortedPrices.map((entry, index) => (
                         <View
                           key={`${entry.vendorId}-${index}`}
@@ -227,7 +231,7 @@ export function ScannedProductDialog({
                     <Text className="text-xs font-semibold uppercase text-muted-foreground">
                       Barcode
                     </Text>
-                    <View className='flex flex-row w-full justify-between '>
+                    <View className="w-full flex-row justify-between">
                       <Text className="font-mono text-sm text-foreground" selectable>
                         {scannedDetails.result.data}
                       </Text>
@@ -239,12 +243,20 @@ export function ScannedProductDialog({
                 </View>
               </ScrollView>
 
-              <DialogFooter className="flex-row gap-3 mt-4">
+              <DialogFooter className="mt-4 flex-row gap-3">
                 <Button variant="outline" className="flex-1" onPress={onClose}>
                   <Text>Scan Again</Text>
                 </Button>
-                <Button className="flex-1" onPress={() => {}}>
-                  <Text>Add to Cart</Text>
+                <Button
+                  className="flex-1 flex-row items-center justify-center gap-2 bg-emerald-500 active:bg-emerald-600"
+                  onPress={() => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    addToCart(liveProduct);
+                    onClose();
+                  }}
+                >
+                  <ShoppingCart size={16} color="#000" />
+                  <Text className="font-bold text-black">Add to Cart</Text>
                 </Button>
               </DialogFooter>
             </>
