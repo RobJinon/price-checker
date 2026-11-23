@@ -2,7 +2,7 @@
 
 ## Overview
 - **Purpose:** Cross-platform mobile barcode-scanning and price-checking application that tracks and compares product prices across multiple stores and vendors.
-- **Tech Stack:** Expo (SDK 57), React Native (0.86, New Architecture), TypeScript, Expo Router, NativeWind (Tailwind CSS), React Native Reusables, React Native Reanimated (v4), React Native Vision Camera (v5.2.4 + Nitro Modules), `@react-native-ml-kit/barcode-scanning`, Lucide React Native, Supabase (planned), `pnpm`, EAS Build.
+- **Tech Stack:** Expo (SDK 57), React Native (0.86, New Architecture), TypeScript, Expo Router, NativeWind (Tailwind CSS), React Native Reusables, React Native Reanimated (v4), Expo Camera (`expo-camera`), Lucide React Native, Supabase (planned), `pnpm`, EAS Build.
 
 ## Directory Structure
 - `app/` — Expo Router file-based layouts and screens (`_layout.tsx`, `(tabs)/_layout.tsx`, `(tabs)/index.tsx` Scanner, `(tabs)/stores.tsx`, `(tabs)/products.tsx`).
@@ -20,11 +20,10 @@
 ## Architecture & Constraints
 - **Package Manager (`pnpm`):** Always use `pnpm` (with `node-linker=hoisted` in `.npmrc`). Never run `npm install` or commit a `package-lock.json` alongside `pnpm-lock.yaml`.
 - **UI & Styling (React Native Reusables + NativeWind):** Use React Native Reusables primitives from `@/components/ui/*` (`Button`, `Dialog`, `Input`, `Label`, `Text`, `Textarea`, `Badge`, `Separator`) instead of raw React Native components where available so theme tokens and dark/light mode stay consistent.
-- **VisionCamera v5.2.4 Rules:**
-  - Do **not** add `react-native-vision-camera` to `app.json` `plugins` (v5 has no `app.plugin.js`); declare camera permissions under `android.permissions` and `ios.infoPlist` instead.
-  - Use v5 Nitro APIs (`CameraRef`, `focusTo`, `usePhotoOutput` + `capturePhoto` + `dispose`, `torchMode`, `minExposureBias`/`maxExposureBias`)—never v4 APIs (`useCodeScanner`, `takePhoto`, `focus`, `torch`).
-  - Do **not** pass Reanimated `SharedValue`s directly to `<Camera>` props (triggers missing `react-native-vision-camera-worklets`).
-  - Gate `zoom`, `exposure`, and `torchMode` until `onPreviewStarted` fires (`isCameraReady`), and pass `torchMode={undefined}` when `!device.hasTorch` to prevent Android CameraX exceptions.
+- **Expo Camera Rules:**
+  - Use `CameraView` with `onBarcodeScanned` for real-time video stream barcode scanning without still captures or shutter audio.
+  - Set `enableTorch` gated to back camera (`facing === 'back' && torchEnabled`).
+  - Zoom range in `expo-camera` is normalized `0` to `1`.
 - **Dialogs & Reanimated 4:** Never wrap `<DialogContent>` in `Animated.createAnimatedComponent` (causes missing host instance errors). Strip styles from `DialogContent` and animate an inner `<Animated.View>` card with `marginBottom` driven by `Keyboard` listeners.
 - **Generated Files:** Never manually modify `android/`, `ios/`, or `node_modules/`.
 
