@@ -1,7 +1,7 @@
 import { MoonStar, Package, Plus, Search, Sun, X } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import { useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ManualAddProductDialog } from '@/components/products/manual-add-product-dialog';
@@ -25,6 +25,17 @@ export default function ProductsScreen() {
   const [selectedVendorId, setSelectedVendorId] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      // If useProducts() exposes an async reload method, await it here (e.g., await refreshProducts())
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -146,6 +157,9 @@ export default function ProductsScreen() {
         data={filteredProducts}
         keyExtractor={(item) => item.id}
         contentContainerClassName="gap-3 p-4 pb-8"
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+        }
         renderItem={({ item }) => (
           <ProductCard product={item} onPress={setSelectedProduct} />
         )}

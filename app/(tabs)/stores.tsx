@@ -1,6 +1,6 @@
 import { Plus, Search, Store, X } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { VendorCard } from '@/components/stores/vendor-card';
@@ -27,7 +27,18 @@ export default function StoresScreen() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      // If useProducts() exposes an async reload method, await it here (e.g., await refreshProducts())
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+  
   const productCountByVendor = useMemo(() => {
     const counts: Record<string, number> = {};
     products.forEach((product) => {
@@ -164,6 +175,9 @@ export default function StoresScreen() {
         data={filteredVendors}
         keyExtractor={(item) => item.id}
         contentContainerClassName="gap-3 p-4 pb-8"
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+        }
         renderItem={({ item }) => (
           <VendorCard
             vendor={item}
