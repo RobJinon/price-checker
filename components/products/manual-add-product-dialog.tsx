@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
+import { UnitSelect } from '@/components/unit-select';
 import { useProducts } from '@/context/products-context';
 import { Product } from '@/data/mock-products';
 import { VENDOR_CATEGORIES, VendorCategory } from '@/data/mock-vendors';
@@ -42,6 +43,8 @@ export function ManualAddProductDialog({
 
   const [barcode, setBarcode] = useState('');
   const [name, setName] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [vendorCategory, setVendorCategory] = useState<VendorCategory>('supermarket');
   const [vendorLocation, setVendorLocation] = useState('');
@@ -81,6 +84,8 @@ export function ManualAddProductDialog({
 
       setName(product.name);
       setBarcode(existingBarcode.startsWith('MANUAL-') ? '' : existingBarcode);
+      setQuantity(product.quantity !== null && product.quantity !== undefined ? String(product.quantity) : '');
+      setUnit(product.unit ?? '');
       setVendorName(existingVendor?.name ?? '');
       setVendorCategory(existingVendor?.category ?? 'supermarket');
       setVendorLocation(existingVendor?.location ?? '');
@@ -89,6 +94,8 @@ export function ManualAddProductDialog({
     } else {
       setBarcode('');
       setName('');
+      setQuantity('');
+      setUnit('');
       setVendorName('');
       setVendorCategory('supermarket');
       setVendorLocation('');
@@ -103,6 +110,10 @@ export function ManualAddProductDialog({
   const isNewVendor = Boolean(vendorName.trim()) && !matchedVendor;
 
   const parsedPrice = parseFloat(price);
+  const parsedQuantity = parseFloat(quantity);
+  const normalizedQuantity = !Number.isNaN(parsedQuantity) ? parsedQuantity : null;
+  const normalizedUnit = unit || null;
+
   const hasPriceInput = Boolean(vendorName.trim()) || Boolean(price.trim());
   const isPriceValid =
     Boolean(vendorName.trim()) && !Number.isNaN(parsedPrice) && parsedPrice >= 0;
@@ -119,6 +130,8 @@ export function ManualAddProductDialog({
         await updateProduct(product.id, {
           name,
           barcode,
+          quantity: normalizedQuantity,
+          unit: normalizedUnit,
           details,
           vendorName: vendorName.trim() || undefined,
           vendorCategory: isNewVendor ? vendorCategory : undefined,
@@ -129,6 +142,8 @@ export function ManualAddProductDialog({
         await addProduct({
           barcode: barcode.trim() || `MANUAL-${Date.now()}`,
           name,
+          quantity: normalizedQuantity,
+          unit: normalizedUnit,
           vendorName,
           vendorCategory: isNewVendor ? vendorCategory : undefined,
           vendorLocation: isNewVendor ? vendorLocation : undefined,
@@ -181,6 +196,23 @@ export function ManualAddProductDialog({
                 value={name}
                 onChangeText={setName}
               />
+            </View>
+
+            <View className="flex-row gap-2">
+              <View className="flex-1 gap-1.5">
+                <Label nativeID="manual-product-quantity">Quantity</Label>
+                <Input
+                  aria-labelledby="manual-product-quantity"
+                  placeholder="e.g. 155"
+                  keyboardType="decimal-pad"
+                  value={quantity}
+                  onChangeText={setQuantity}
+                />
+              </View>
+              <View className="flex-1 gap-1.5">
+                <Label nativeID="manual-product-unit">Unit</Label>
+                <UnitSelect value={unit} onChange={setUnit} />
+              </View>
             </View>
 
             <View className="gap-1.5">

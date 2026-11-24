@@ -20,6 +20,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
+import { UnitSelect } from '@/components/unit-select';
+import { parseOpenFoodFactsQuantity } from '@/constants/product-units';
 import { useProducts } from '@/context/products-context';
 import { VENDOR_CATEGORIES, VendorCategory } from '@/data/mock-vendors';
 import { useProductLookup } from '@/hooks/use-product-lookup';
@@ -29,6 +31,8 @@ type AddProductFormProps = {
   barcodeType: string;
   onSave: (data: {
     name: string;
+    quantity?: number | null;
+    unit?: string | null;
     vendorName: string;
     vendorCategory?: VendorCategory;
     vendorLocation?: string;
@@ -46,6 +50,8 @@ export function AddProductForm({
 }: AddProductFormProps) {
   const { vendors } = useProducts();
   const [name, setName] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [vendorCategory, setVendorCategory] = useState<VendorCategory>('supermarket');
   const [vendorLocation, setVendorLocation] = useState('');
@@ -83,7 +89,13 @@ export function AddProductForm({
         setName((prev) => (prev.trim() ? prev : formattedName));
       }
       if (offProduct.quantity) {
-        setDetails((prev) => (prev.trim() ? prev : offProduct.quantity));
+        const parsed = parseOpenFoodFactsQuantity(offProduct.quantity);
+        if (parsed.quantity) {
+          setQuantity((prev) => (prev.trim() ? prev : parsed.quantity));
+        }
+        if (parsed.unit) {
+          setUnit((prev) => (prev ? prev : parsed.unit));
+        }
       }
     });
 
@@ -98,6 +110,7 @@ export function AddProductForm({
   const isNewVendor = Boolean(vendorName.trim()) && !matchedVendor;
 
   const parsedPrice = parseFloat(price);
+  const parsedQuantity = parseFloat(quantity);
   const isValid =
     Boolean(name.trim()) &&
     Boolean(vendorName.trim()) &&
@@ -108,6 +121,8 @@ export function AddProductForm({
     if (!isValid) return;
     onSave({
       name,
+      quantity: !Number.isNaN(parsedQuantity) ? parsedQuantity : null,
+      unit: unit || null,
       vendorName,
       vendorCategory: isNewVendor ? vendorCategory : undefined,
       vendorLocation: isNewVendor ? vendorLocation : undefined,
@@ -149,6 +164,23 @@ export function AddProductForm({
               value={name}
               onChangeText={setName}
             />
+          </View>
+
+          <View className="flex-row gap-2">
+            <View className="flex-1 gap-1.5">
+              <Label nativeID="product-quantity">Quantity</Label>
+              <Input
+                aria-labelledby="product-quantity"
+                placeholder="e.g. 155"
+                keyboardType="decimal-pad"
+                value={quantity}
+                onChangeText={setQuantity}
+              />
+            </View>
+            <View className="flex-1 gap-1.5">
+              <Label nativeID="product-unit">Unit</Label>
+              <UnitSelect value={unit} onChange={setUnit} />
+            </View>
           </View>
 
           <View className="gap-1.5">
