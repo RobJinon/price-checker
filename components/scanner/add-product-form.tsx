@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
 import { useProducts } from '@/context/products-context';
 import { VENDOR_CATEGORIES, VendorCategory } from '@/data/mock-vendors';
+import { useProductLookup } from '@/hooks/use-product-lookup';
 
 type AddProductFormProps = {
   barcode: string;
@@ -43,6 +52,46 @@ export function AddProductForm({
   const [price, setPrice] = useState('');
   const [details, setDetails] = useState('');
 
+  const { lookupStatus, lookupBarcode } = useProductLookup();
+
+  const loadingOpacity = useSharedValue(1);
+
+  useEffect(() => {
+    if (lookupStatus === 'loading') {
+      loadingOpacity.value = withRepeat(withTiming(0.35, { duration: 600 }), -1, true);
+    } else {
+      loadingOpacity.value = 1;
+    }
+  }, [lookupStatus, loadingOpacity]);
+
+  const loadingAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: loadingOpacity.value,
+  }));
+
+  useEffect(() => {
+    let isMounted = true;
+
+    lookupBarcode(barcode).then((offProduct) => {
+      if (!isMounted || !offProduct) return;
+
+      console.log('[OFF Product Found]:', JSON.stringify(offProduct, null, 2));
+
+      if (offProduct.name) {
+        const formattedName = offProduct.name
+          .toLowerCase()
+          .replace(/(?:^|\s)\S/g, (char) => char.toUpperCase());
+        setName((prev) => (prev.trim() ? prev : formattedName));
+      }
+      if (offProduct.quantity) {
+        setDetails((prev) => (prev.trim() ? prev : offProduct.quantity));
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [barcode, lookupBarcode]);
+
   const matchedVendor = vendors.find(
     (v) => v.name.toLowerCase() === vendorName.trim().toLowerCase()
   );
@@ -69,11 +118,25 @@ export function AddProductForm({
 
   return (
     <>
-      <DialogHeader>
+      <DialogHeader className='gap-0'>
         <DialogTitle>Add New Product</DialogTitle>
-        <DialogDescription>
+        <DialogDescription className='mt-1'>
           Barcode: {barcode} ({barcodeType.toUpperCase()})
         </DialogDescription>
+          {lookupStatus === 'loading' && (
+            <Animated.View style={loadingAnimatedStyle}>
+              <Text className="text-xs text-neutral-400">Looking up product info...</Text>
+            </Animated.View>
+          )}
+          {lookupStatus === 'found' && (
+            <Text className="text-xs text-green-400">Pre-filled from Open Food Facts Database</Text>
+          )}
+          {lookupStatus === 'not-found' && (
+            <Text className="text-xs text-amber-400">Not in Open Food Facts</Text>
+          )}
+          {lookupStatus === 'error' && (
+            <Text className="text-xs text-red-400">Lookup unavailable</Text>
+          )}
       </DialogHeader>
 
       <ScrollView className="max-h-80" keyboardShouldPersistTaps="handled">
