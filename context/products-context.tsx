@@ -14,6 +14,8 @@ export type NewVendorInput = {
 export type NewProductInput = {
   barcode: string;
   name: string;
+  quantity?: number | null;
+  unit?: string | null;
   vendorName: string;
   vendorCategory?: VendorCategory;
   vendorLocation?: string;
@@ -24,6 +26,8 @@ export type NewProductInput = {
 export type UpdateProductInput = {
   name: string;
   barcode?: string;
+  quantity?: number | null;
+  unit?: string | null;
   details: string;
   vendorName?: string;
   vendorCategory?: VendorCategory;
@@ -117,6 +121,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         id: row.id,
         barcodes: Array.isArray(row.barcodes) ? row.barcodes : [],
         name: row.name,
+        quantity: row.quantity !== null && row.quantity !== undefined ? Number(row.quantity) : null,
+        unit: row.unit ?? null,
         details: row.details ?? '',
         prices: pricesByProduct.get(row.id) ?? [],
       }));
@@ -264,11 +270,15 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     const productId = `prod_${Date.now()}`;
     const cleanName = input.name.trim();
     const cleanDetails = input.details.trim() || 'No description provided.';
+    const cleanQuantity = input.quantity ?? null;
+    const cleanUnit = input.unit?.trim() || null;
 
     const { error: productError } = await supabase.from('products').insert({
       id: productId,
       barcodes: [normalizedBarcode],
       name: cleanName,
+      quantity: cleanQuantity,
+      unit: cleanUnit,
       details: cleanDetails,
     });
     if (productError) throw productError;
@@ -285,6 +295,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       id: productId,
       barcodes: [normalizedBarcode],
       name: cleanName,
+      quantity: cleanQuantity,
+      unit: cleanUnit,
       details: cleanDetails,
       prices: [
         {
@@ -309,18 +321,23 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
     const updatedBarcodes = trimmedBarcode
       ? [
-          trimmedBarcode,
-          ...existing.barcodes.filter(
-            (code) => code.toUpperCase() !== trimmedBarcode && !code.startsWith('MANUAL-')
-          ),
-        ]
+        trimmedBarcode,
+        ...existing.barcodes.filter(
+          (code) => code.toUpperCase() !== trimmedBarcode && !code.startsWith('MANUAL-')
+        ),
+      ]
       : existing.barcodes;
+
+    const cleanQuantity = input.quantity !== undefined ? input.quantity : existing.quantity ?? null;
+    const cleanUnit = input.unit !== undefined ? (input.unit?.trim() || null) : existing.unit ?? null;
 
     const { error } = await supabase
       .from('products')
       .update({
         name: cleanName,
         barcodes: updatedBarcodes,
+        quantity: cleanQuantity,
+        unit: cleanUnit,
         details: cleanDetails,
       })
       .eq('id', productId);
@@ -331,11 +348,13 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       prev.map((product) =>
         product.id === productId
           ? {
-              ...product,
-              name: cleanName,
-              barcodes: updatedBarcodes,
-              details: cleanDetails,
-            }
+            ...product,
+            name: cleanName,
+            barcodes: updatedBarcodes,
+            quantity: cleanQuantity,
+            unit: cleanUnit,
+            details: cleanDetails,
+          }
           : product
       )
     );
