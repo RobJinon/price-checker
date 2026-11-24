@@ -20,9 +20,10 @@ import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
 import { UnitSelect } from '@/components/unit-select';
+import { VendorInput } from '@/components/vendor-input';
 import { useProducts } from '@/context/products-context';
 import { Product } from '@/data/mock-products';
-import { VENDOR_CATEGORIES, VendorCategory } from '@/data/mock-vendors';
+import { VendorCategory } from '@/data/mock-vendors';
 
 type ManualAddProductDialogProps = {
   open: boolean;
@@ -227,92 +228,17 @@ export function ManualAddProductDialog({
 
             <View className="gap-1.5">
               <Label nativeID="manual-product-vendor">Shop / Supermarket *</Label>
-              <Input
-                aria-labelledby="manual-product-vendor"
-                placeholder="e.g. SM Supermarket, Iloilo Supermart, Shopee"
-                value={vendorName}
-                onChangeText={setVendorName}
+              <VendorInput
+                labelId="manual-product-vendor"
+                vendors={vendors}
+                vendorName={vendorName}
+                onChangeVendorName={setVendorName}
+                vendorCategory={vendorCategory}
+                onChangeVendorCategory={setVendorCategory}
+                vendorLocation={vendorLocation}
+                onChangeVendorLocation={setVendorLocation}
               />
-              {vendors.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <View className="flex-row gap-1.5 pt-1">
-                    {vendors.map((existingVendor) => {
-                      const isSelected = matchedVendor?.id === existingVendor.id;
-                      return (
-                        <Pressable
-                          key={existingVendor.id}
-                          onPress={() => setVendorName(existingVendor.name)}
-                          className={`rounded-full border px-2.5 py-1 ${
-                            isSelected
-                              ? 'border-primary bg-primary'
-                              : 'border-border bg-secondary'
-                          }`}
-                        >
-                          <Text
-                            className={`text-xs ${
-                              isSelected
-                                ? 'font-semibold text-primary-foreground'
-                                : 'text-secondary-foreground'
-                            }`}
-                          >
-                            {existingVendor.name}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              )}
             </View>
-
-            {isNewVendor && (
-              <View className="gap-2 rounded-lg border border-border bg-secondary/40 p-2.5">
-                <Text className="text-xs font-semibold text-muted-foreground">
-                  New Shop Details (Optional)
-                </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <View className="flex-row gap-1.5">
-                    {VENDOR_CATEGORIES.map((cat) => {
-                      const selected = vendorCategory === cat.value;
-                      return (
-                        <Pressable
-                          key={cat.value}
-                          onPress={() => setVendorCategory(cat.value)}
-                          className={`rounded-full border px-2.5 py-1 ${
-                            selected
-                              ? 'border-primary bg-primary'
-                              : 'border-border bg-background'
-                          }`}
-                        >
-                          <Text
-                            className={`text-xs ${
-                              selected
-                                ? 'font-semibold text-primary-foreground'
-                                : 'text-foreground'
-                            }`}
-                          >
-                            {cat.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-                <Input
-                  placeholder="Location (e.g. Jaro Public Market, Iloilo City)"
-                  value={vendorLocation}
-                  onChangeText={setVendorLocation}
-                />
-              </View>
-            )}
 
             <View className="gap-1.5">
               <Label nativeID="manual-product-price">Price (₱) *</Label>

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -21,9 +21,10 @@ import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
 import { UnitSelect } from '@/components/unit-select';
+import { VendorInput } from '@/components/vendor-input';
 import { parseOpenFoodFactsQuantity } from '@/constants/product-units';
 import { useProducts } from '@/context/products-context';
-import { VENDOR_CATEGORIES, VendorCategory } from '@/data/mock-vendors';
+import { VendorCategory } from '@/data/mock-vendors';
 import { useProductLookup } from '@/hooks/use-product-lookup';
 
 type AddProductFormProps = {
@@ -88,14 +89,20 @@ export function AddProductForm({
           .replace(/(?:^|\s)\S/g, (char) => char.toUpperCase());
         setName((prev) => (prev.trim() ? prev : formattedName));
       }
-      if (offProduct.quantity) {
-        const parsed = parseOpenFoodFactsQuantity(offProduct.quantity);
-        if (parsed.quantity) {
-          setQuantity((prev) => (prev.trim() ? prev : parsed.quantity));
-        }
-        if (parsed.unit) {
-          setUnit((prev) => (prev ? prev : parsed.unit));
-        }
+      const parsedFromQuantity = parseOpenFoodFactsQuantity(offProduct.quantity);
+      const parsedFromName =
+        !parsedFromQuantity.quantity && !parsedFromQuantity.unit && offProduct.name
+          ? parseOpenFoodFactsQuantity(offProduct.name)
+          : { quantity: '', unit: '' };
+
+      const resolvedQuantity = parsedFromQuantity.quantity || parsedFromName.quantity;
+      const resolvedUnit = parsedFromQuantity.unit || parsedFromName.unit;
+
+      if (resolvedQuantity) {
+        setQuantity((prev) => (prev.trim() ? prev : resolvedQuantity));
+      }
+      if (resolvedUnit) {
+        setUnit((prev) => (prev ? prev : resolvedUnit));
       }
     });
 
@@ -185,90 +192,17 @@ export function AddProductForm({
 
           <View className="gap-1.5">
             <Label nativeID="product-vendor">Shop / Supermarket *</Label>
-            <Input
-              aria-labelledby="product-vendor"
-              placeholder="e.g. SM Supermarket, Iloilo Supermart, Shopee"
-              value={vendorName}
-              onChangeText={setVendorName}
+            <VendorInput
+              labelId="product-vendor"
+              vendors={vendors}
+              vendorName={vendorName}
+              onChangeVendorName={setVendorName}
+              vendorCategory={vendorCategory}
+              onChangeVendorCategory={setVendorCategory}
+              vendorLocation={vendorLocation}
+              onChangeVendorLocation={setVendorLocation}
             />
-            {vendors.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                <View className="flex-row gap-1.5 pt-1">
-                  {vendors.map((existingVendor) => {
-                    const isSelected = matchedVendor?.id === existingVendor.id;
-                    return (
-                      <Pressable
-                        key={existingVendor.id}
-                        onPress={() => setVendorName(existingVendor.name)}
-                        className={`rounded-full border px-2.5 py-1 ${
-                          isSelected
-                            ? 'border-primary bg-primary'
-                            : 'border-border bg-secondary'
-                        }`}
-                      >
-                        <Text
-                          className={`text-xs ${
-                            isSelected
-                              ? 'font-semibold text-primary-foreground'
-                              : 'text-secondary-foreground'
-                          }`}
-                        >
-                          {existingVendor.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            )}
           </View>
-
-          {isNewVendor && (
-            <View className="gap-2 rounded-lg border border-border bg-secondary/40 p-2.5">
-              <Text className="text-xs font-semibold text-muted-foreground">
-                New Shop Details (Optional)
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                <View className="flex-row gap-1.5">
-                  {VENDOR_CATEGORIES.map((cat) => {
-                    const selected = vendorCategory === cat.value;
-                    return (
-                      <Pressable
-                        key={cat.value}
-                        onPress={() => setVendorCategory(cat.value)}
-                        className={`rounded-full border px-2.5 py-1 ${
-                          selected
-                            ? 'border-primary bg-primary'
-                            : 'border-border bg-background'
-                        }`}
-                      >
-                        <Text
-                          className={`text-xs ${
-                            selected ? 'font-semibold text-primary-foreground' : 'text-foreground'
-                          }`}
-                        >
-                          {cat.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-              <Input
-                placeholder="Location (e.g. Jaro Public Market, Iloilo City)"
-                value={vendorLocation}
-                onChangeText={setVendorLocation}
-              />
-            </View>
-          )}
 
           <View className="gap-1.5">
             <Label nativeID="product-price">Price (₱) *</Label>
