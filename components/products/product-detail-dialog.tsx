@@ -95,6 +95,10 @@ export function ProductDetailDialog({ product, onClose }: ProductDetailDialogPro
 
   const lowestEntry = sortedPrices[0];
 
+  const sizeLabel = [liveProduct.quantity, liveProduct.unit]
+    .filter((value) => value !== null && value !== undefined && value !== '')
+    .join(' ');
+
   const handleSaveVendorPrice = (data: {
     vendorName: string;
     vendorCategory?: VendorCategory;
@@ -151,6 +155,14 @@ export function ProductDetailDialog({ product, onClose }: ProductDetailDialogPro
                     <DialogTitle className="text-center leading-snug">
                       {liveProduct.name}
                     </DialogTitle>
+
+                    {Boolean(sizeLabel) && (
+                      <Badge variant="outline">
+                        <Text className="text-xs font-medium text-muted-foreground">
+                          {sizeLabel}
+                        </Text>
+                      </Badge>
+                    )}
 
                     {lowestEntry && (
                       <View className="flex-row items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-1">
