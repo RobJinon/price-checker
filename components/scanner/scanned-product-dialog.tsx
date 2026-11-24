@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Plus, ShoppingCart } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Keyboard, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Image, Keyboard, Platform, Pressable, ScrollView, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -26,6 +26,8 @@ import { useCart } from '@/context/cart-context';
 import { useProducts } from '@/context/products-context';
 import { Product } from '@/data/mock-products';
 import { VendorCategory } from '@/data/mock-vendors';
+
+import { useProductLookup } from '@/hooks/use-product-lookup';
 
 export type ScannedDetails = {
   result: {
@@ -52,6 +54,8 @@ export function ScannedProductDialog({
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isAddingPrice, setIsAddingPrice] = useState(false);
   const keyboardOffset = useSharedValue(0);
+  const { lookupBarcode } = useProductLookup();
+  const [offImageUrl, setOffImageUrl] = useState<string | null>(null);
 
   const animatedDialogStyle = useAnimatedStyle(() => ({
     marginBottom: keyboardOffset.value,
@@ -80,11 +84,38 @@ export function ScannedProductDialog({
     keyboardOffset.value = 0;
   }, [scannedDetails?.result.data, keyboardOffset]);
 
-  if (!scannedDetails) return null;
-
-  const liveProduct = scannedDetails.product
+  const liveProduct = scannedDetails?.product
     ? (products.find((p) => p.id === scannedDetails.product?.id) ?? scannedDetails.product)
     : null;
+
+    useEffect(() => {
+      const barcode = scannedDetails?.result.data;
+      setOffImageUrl(null);
+      if (!barcode) return;
+
+      let isMounted = true;
+      lookupBarcode(barcode).then((offProduct) => {
+        if (isMounted) {
+          setOffImageUrl(offProduct?.imageUrl ?? null);
+        }
+      });
+
+      return () => {
+        isMounted = false;
+      };
+    }, [scannedDetails?.result.data, lookupBarcode]);
+    
+  // [ LOG PRODUCT DETAILS FROM OPEN FOOD FACTS API ]
+  // useEffect(() => {
+  //   const barcode = scannedDetails?.result.data;
+  //   if (!barcode) return;
+
+  //   lookupBarcode(barcode).then((offProduct) => {
+  //     console.log('[Open Food Facts Log]:', JSON.stringify({ offProduct }, null, 2));
+  //   });
+  // }, [scannedDetails?.result.data, lookupBarcode]);
+
+  if (!scannedDetails) return null;
 
   const handleSaveNewProduct = async (data: {
     name: string;
@@ -153,19 +184,35 @@ export function ScannedProductDialog({
           ) : liveProduct ? (
             <>
               <DialogHeader>
-                <View className="flex-row items-start justify-between gap-2 pr-6">
-                  <DialogTitle className="flex-1 text-lg">{liveProduct.name}</DialogTitle>
-                </View>
-                {lowestEntry && (
-                  <View className="flex-row items-baseline gap-2">
-                    <Text className="text-2xl font-extrabold text-emerald-500">
-                      ₱{lowestEntry.price.toFixed(2)}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground">
-                      lowest at {lowestEntry.vendor?.name ?? 'Unknown Store'}
-                    </Text>
+                <View className="flex-col items-center gap-3">
+                  {offImageUrl && (
+                    <View className="h-24 w-24 overflow-hidden rounded-2xl border border-border bg-white p-2">
+                      <Image
+                        source={{ uri: offImageUrl }}
+                        className="h-full w-full"
+                        resizeMode="contain"
+                        onError={() => setOffImageUrl(null)}
+                      />
+                    </View>
+                  )}
+
+                  <View className="w-full items-center gap-2">
+                    <DialogTitle className="text-center leading-snug">
+                      {liveProduct.name}
+                    </DialogTitle>
+
+                    {lowestEntry && (
+                      <View className="flex-row items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-1">
+                        <Text className="text-xl font-extrabold text-emerald-500">
+                          ₱{lowestEntry.price.toFixed(2)}
+                        </Text>
+                        <Text className="text-xs text-muted-foreground">
+                          at {lowestEntry.vendor?.name ?? 'Unknown Store'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                )}
+                </View>
               </DialogHeader>
 
               <ScrollView

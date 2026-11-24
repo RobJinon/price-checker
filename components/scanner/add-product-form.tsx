@@ -74,7 +74,7 @@ export function AddProductForm({
     lookupBarcode(barcode).then((offProduct) => {
       if (!isMounted || !offProduct) return;
 
-      console.log('[OFF Product Found]:', JSON.stringify(offProduct, null, 2));
+      console.log('[Product Found]:', JSON.stringify(offProduct, null, 2));
 
       if (offProduct.name) {
         const formattedName = offProduct.name

@@ -3,6 +3,7 @@ export interface NormalizedOffProduct {
   name: string;
   brand: string;
   quantity: string;
+  imageUrl: string | null;
 }
 
 interface OffV3Response {
@@ -14,12 +15,15 @@ interface OffV3Response {
     generic_name?: string;
     brands?: string;
     quantity?: string;
+    image_front_small_url?: string;
+    image_front_url?: string;
   };
-}
+};
 
 const BASE_URL = 'https://world.openfoodfacts.org/api/v3/product';
 const USER_AGENT = 'PriceChecker/0.1.1 (robien.jinon@gmail.com)';
-const FIELDS = 'code,product_name,product_name_en,generic_name,brands,quantity';
+const FIELDS =
+  'code,product_name,product_name_en,generic_name,brands,quantity,image_front_small_url,image_front_url';
 
 const productCache = new Map<string, NormalizedOffProduct | null>();
 
@@ -76,11 +80,20 @@ export async function fetchOffProductByBarcode(
       ? `${brand} ${rawName}`
       : rawName || brand;
 
+  const quantity = p.quantity?.trim() || '';
+  const imageUrl = p.image_front_small_url || p.image_front_url || null;
+
+  if (!fullName && !brand && !quantity && !imageUrl) {
+    productCache.set(barcode, null);
+    return null;
+  }
+
   const normalized: NormalizedOffProduct = {
     barcode: p.code || barcode,
-    name:  p.product_name?.trim() || '',
+    name: fullName,
     brand,
-    quantity: p.quantity?.trim() || '',
+    quantity,
+    imageUrl,
   };
 
   productCache.set(barcode, normalized);
