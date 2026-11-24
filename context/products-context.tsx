@@ -21,6 +21,16 @@ export type NewProductInput = {
   details: string;
 };
 
+export type UpdateProductInput = {
+  name: string;
+  barcode?: string;
+  details: string;
+  vendorName?: string;
+  vendorCategory?: VendorCategory;
+  vendorLocation?: string;
+  price?: number;
+};
+
 type ProductsContextValue = {
   products: Product[];
   vendors: Vendor[];
@@ -33,6 +43,8 @@ type ProductsContextValue = {
   deleteVendor: (vendorId: string) => Promise<void>;
   findProductByBarcode: (rawBarcode: string) => Product | null;
   addProduct: (input: NewProductInput) => Promise<Product>;
+  updateProduct: (productId: string, input: UpdateProductInput) => Promise<void>;
+  deleteProduct: (productId: string) => Promise<void>;
   upsertVendorPrice: (
     productId: string,
     vendorInput: NewVendorInput,
@@ -41,6 +53,24 @@ type ProductsContextValue = {
 };
 
 const ProductsContext = createContext<ProductsContextValue | null>(null);
+
+function buildVendorId(name: string, existingIds: Set<string>): string {
+  const slug = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  const baseId = `ven_${slug || Date.now()}`;
+  if (!existingIds.has(baseId)) return baseId;
+
+  let counter = 2;
+  while (existingIds.has(`${baseId}_${counter}`)) {
+    counter += 1;
+  }
+  return `${baseId}_${counter}`;
+}
 
 export function ProductsProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -115,7 +145,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     if (existing) return existing;
 
     const newVendor: Vendor = {
-      id: `ven_${Date.now()}`,
+      id: buildVendorId(cleanName, new Set(vendors.map((v) => v.id))),
       name: cleanName,
       category: input.category ?? 'general_store',
       description: input.description?.trim() ?? '',
@@ -269,6 +299,80 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     return newProduct;
   };
 
+  const updateProduct = async (productId: string, input: UpdateProductInput) => {
+    const existing = products.find((p) => p.id === productId);
+    if (!existing) return;
+
+    const cleanName = input.name.trim();
+    const cleanDetails = input.details.trim() || 'No description provided.';
+    const trimmedBarcode = input.barcode?.trim().toUpperCase();
+
+    const updatedBarcodes = trimmedBarcode
+      ? [
+          trimmedBarcode,
+          ...existing.barcodes.filter(
+            (code) => code.toUpperCase() !== trimmedBarcode && !code.startsWith('MANUAL-')
+          ),
+        ]
+      : existing.barcodes;
+
+    const { error } = await supabase
+      .from('products')
+      .update({
+        name: cleanName,
+        barcodes: updatedBarcodes,
+        details: cleanDetails,
+      })
+      .eq('id', productId);
+
+    if (error) throw error;
+
+    setProducts((prev) =>
+      prev.map((product) =>
+        product.id === productId
+          ? {
+              ...product,
+              name: cleanName,
+              barcodes: updatedBarcodes,
+              details: cleanDetails,
+            }
+          : product
+      )
+    );
+
+    if (
+      input.vendorName?.trim() &&
+      input.price !== undefined &&
+      !Number.isNaN(input.price)
+    ) {
+      await upsertVendorPrice(
+        productId,
+        {
+          name: input.vendorName,
+          category: input.vendorCategory,
+          location: input.vendorLocation,
+        },
+        input.price
+      );
+    }
+  };
+
+  const deleteProduct = async (productId: string) => {
+    const { error: pricesError } = await supabase
+      .from('product_prices')
+      .delete()
+      .eq('product_id', productId);
+    if (pricesError) throw pricesError;
+
+    const { error: productError } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', productId);
+    if (productError) throw productError;
+
+    setProducts((prev) => prev.filter((product) => product.id !== productId));
+  };
+
   const upsertVendorPrice = async (
     productId: string,
     vendorInput: NewVendorInput,
@@ -340,6 +444,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         deleteVendor,
         findProductByBarcode,
         addProduct,
+        updateProduct,
+        deleteProduct,
         upsertVendorPrice,
       }}
     >

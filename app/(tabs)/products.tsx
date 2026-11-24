@@ -24,6 +24,7 @@ export default function ProductsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendorId, setSelectedVendorId] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -161,7 +162,14 @@ export default function ProductsScreen() {
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
         renderItem={({ item }) => (
-          <ProductCard product={item} onPress={setSelectedProduct} />
+          <ProductCard
+            product={item}
+            onPress={setSelectedProduct}
+            onEdit={(product) => {
+              setEditingProduct(product);
+              setIsAddOpen(true);
+            }}
+          />
         )}
         ListEmptyComponent={
           <View className="items-center justify-center gap-2 py-16">
@@ -180,8 +188,15 @@ export default function ProductsScreen() {
         onClose={() => setSelectedProduct(null)}
       />
 
-      {/* Manual Add Product Dialog */}
-      <ManualAddProductDialog open={isAddOpen} onClose={() => setIsAddOpen(false)} />
+      {/* Manual Add / Edit Product Dialog */}
+      <ManualAddProductDialog
+        open={isAddOpen}
+        product={editingProduct}
+        onClose={() => {
+          setIsAddOpen(false);
+          setEditingProduct(null);
+        }}
+      />
     </SafeAreaView>
   );
 }

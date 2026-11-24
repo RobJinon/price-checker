@@ -20,15 +20,23 @@ import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
 import { useProducts } from '@/context/products-context';
+import { Product } from '@/data/mock-products';
 import { VENDOR_CATEGORIES, VendorCategory } from '@/data/mock-vendors';
 
 type ManualAddProductDialogProps = {
   open: boolean;
   onClose: () => void;
+  product?: Product | null;
 };
 
-export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialogProps) {
-  const { vendors, addProduct } = useProducts();
+export function ManualAddProductDialog({
+  open,
+  onClose,
+  product,
+}: ManualAddProductDialogProps) {
+  const { vendors, addProduct, updateProduct } = useProducts();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditing = Boolean(product);
   const scrollViewRef = useRef<ScrollView>(null);
   const keyboardOffset = useSharedValue(0);
 
@@ -62,7 +70,23 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
   }, []);
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+
+    if (product) {
+      const existingBarcode = product.barcodes[0] ?? '';
+      const firstPrice = product.prices[0];
+      const existingVendor = firstPrice
+        ? vendors.find((v) => v.id === firstPrice.vendorId)
+        : undefined;
+
+      setName(product.name);
+      setBarcode(existingBarcode.startsWith('MANUAL-') ? '' : existingBarcode);
+      setVendorName(existingVendor?.name ?? '');
+      setVendorCategory(existingVendor?.category ?? 'supermarket');
+      setVendorLocation(existingVendor?.location ?? '');
+      setPrice(firstPrice ? String(firstPrice.price) : '');
+      setDetails(product.details === 'No description provided.' ? '' : product.details);
+    } else {
       setBarcode('');
       setName('');
       setVendorName('');
@@ -71,7 +95,7 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
       setPrice('');
       setDetails('');
     }
-  }, [open]);
+  }, [open, product, vendors]);
 
   const matchedVendor = vendors.find(
     (v) => v.name.toLowerCase() === vendorName.trim().toLowerCase()
@@ -79,26 +103,46 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
   const isNewVendor = Boolean(vendorName.trim()) && !matchedVendor;
 
   const parsedPrice = parseFloat(price);
+  const hasPriceInput = Boolean(vendorName.trim()) || Boolean(price.trim());
+  const isPriceValid =
+    Boolean(vendorName.trim()) && !Number.isNaN(parsedPrice) && parsedPrice >= 0;
+
   const isValid =
-    Boolean(name.trim()) &&
-    Boolean(vendorName.trim()) &&
-    !Number.isNaN(parsedPrice) &&
-    parsedPrice >= 0;
+    Boolean(name.trim()) && (isEditing ? !hasPriceInput || isPriceValid : isPriceValid);
 
-  const handleSubmit = () => {
-    if (!isValid) return;
+  const handleSubmit = async () => {
+    if (!isValid || isSubmitting) return;
 
-    addProduct({
-      barcode: barcode.trim() || `MANUAL-${Date.now()}`,
-      name,
-      vendorName,
-      vendorCategory: isNewVendor ? vendorCategory : undefined,
-      vendorLocation: isNewVendor ? vendorLocation : undefined,
-      price: parsedPrice,
-      details,
-    });
+    setIsSubmitting(true);
+    try {
+      if (isEditing && product) {
+        await updateProduct(product.id, {
+          name,
+          barcode,
+          details,
+          vendorName: vendorName.trim() || undefined,
+          vendorCategory: isNewVendor ? vendorCategory : undefined,
+          vendorLocation: isNewVendor ? vendorLocation : undefined,
+          price: !Number.isNaN(parsedPrice) ? parsedPrice : undefined,
+        });
+      } else {
+        await addProduct({
+          barcode: barcode.trim() || `MANUAL-${Date.now()}`,
+          name,
+          vendorName,
+          vendorCategory: isNewVendor ? vendorCategory : undefined,
+          vendorLocation: isNewVendor ? vendorLocation : undefined,
+          price: parsedPrice,
+          details,
+        });
+      }
 
-    onClose();
+      onClose();
+    } catch (error) {
+      console.error('Failed to save product:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -114,9 +158,11 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
           className="gap-4 rounded-lg border border-border bg-background p-6 shadow-lg"
         >
           <DialogHeader>
-            <DialogTitle>Add New Product</DialogTitle>
+            <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
             <DialogDescription>
-              Enter product details and its initial store price.
+              {isEditing
+                ? 'Update product details or store pricing.'
+                : 'Enter product details and its initial store price.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -268,8 +314,10 @@ export function ManualAddProductDialog({ open, onClose }: ManualAddProductDialog
           <Button variant="outline" className="flex-1" onPress={onClose}>
             <Text>Cancel</Text>
           </Button>
-          <Button className="flex-1" disabled={!isValid} onPress={handleSubmit}>
-            <Text>Save Product</Text>
+          <Button className="flex-1" disabled={!isValid || isSubmitting} onPress={handleSubmit}>
+            <Text>
+              {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Product'}
+            </Text>
           </Button>
         </DialogFooter>
         </Animated.View>
